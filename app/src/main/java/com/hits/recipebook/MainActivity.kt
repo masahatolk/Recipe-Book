@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
@@ -34,6 +35,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -138,8 +140,10 @@ fun RecipeBookApp() {
 
     val productById = products.associateBy { it.id }
 
-    var currentTab by remember { mutableIntStateOf(0) }
-    var veganOnly by remember { mutableStateOf(false) }
+    var productScreenMode by remember { mutableIntStateOf(0) }
+    var dishScreenMode by remember { mutableIntStateOf(0) }
+    var selectedProduct by remember { mutableStateOf<Product?>(null) }
+    var selectedDish by remember { mutableStateOf<Dish?>(null) }
 
     val filteredProducts = products
         .filter { productSearch.isBlank() || it.name.contains(productSearch, ignoreCase = true) }
@@ -176,217 +180,237 @@ fun RecipeBookApp() {
                 Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("Блюда") })
             }
             if (tab == 0) {
-                ProductEditor(
-                    form = productForm,
-                    error = productError,
-                    onChange = { productForm = it },
-                    onSave = {
-                        runCatching {
-                            val normalizedPhotos = productForm.photos.split(",").map { it.trim() }.filter { it.isNotBlank() }
-                            require(productForm.name.trim().length >= 2) { "Название продукта: минимум 2 символа" }
-                            require(normalizedPhotos.size <= 5) { "Можно указать максимум 5 фото" }
-                            val nutrition = Nutrition(
-                                calories = productForm.calories.toDouble().also { require(it >= 0) },
-                                proteins = productForm.proteins.toDouble().also { require(it >= 0) },
-                                fats = productForm.fats.toDouble().also { require(it >= 0) },
-                                carbs = productForm.carbs.toDouble().also { require(it >= 0) },
-                            )
-                            val entity = Product(
-                                id = productForm.id ?: java.util.UUID.randomUUID().toString(),
-                                name = productForm.name.trim(),
-                                photos = normalizedPhotos,
-                                nutritionPer100g = nutrition,
-                                composition = productForm.composition.ifBlank { null },
-                                category = productForm.category,
-                                cookingRequirement = productForm.cookingRequirement,
-                                flags = productForm.flags,
-                                createdAt = products.firstOrNull { it.id == productForm.id }?.createdAt ?: Instant.now().toString(),
-                                updatedAt = if (productForm.id == null) null else Instant.now().toString(),
-                            )
-                            val currentIndex = products.indexOfFirst { it.id == entity.id }
-                            if (currentIndex >= 0) products[currentIndex] = entity else products += entity
+                TabRow(selectedTabIndex = productScreenMode) {
+                    Tab(selected = productScreenMode == 0, onClick = { productScreenMode = 0 }, text = { Text("Список") })
+                    Tab(selected = productScreenMode == 1, onClick = { productScreenMode = 1 }, text = { Text("Форма") })
+                }
+                if (productScreenMode == 0) {
+                    ProductFilterBlock(
+                        search = productSearch,
+                        onSearchChange = { productSearch = it },
+                        categoryFilter = productCategoryFilter,
+                        onCategoryFilterChange = { productCategoryFilter = it },
+                        cookingFilter = cookingFilter,
+                        onCookingFilterChange = { cookingFilter = it },
+                        flagsFilter = productFlagsFilter,
+                        onFlagToggle = { flag ->
+                            productFlagsFilter = if (productFlagsFilter.contains(flag)) productFlagsFilter - flag else productFlagsFilter + flag
+                        },
+                        sort = productSort,
+                        onSortChange = { productSort = it }
+                    )
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
+                        items(filteredProducts, key = { it.id }) { product ->
+                            Card(modifier = Modifier.fillMaxWidth()) {
+                                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text(product.name, fontWeight = FontWeight.Bold)
+                                    Text("Категория: ${product.category.label}")
+                                    Text("Готовка: ${product.cookingRequirement.label}")
+                                    Text("КБЖУ/100 г: ${pretty(product.nutritionPer100g)}")
+                                    Text("Флаги: ${flagsText(product.flags)}")
+                                    Text("Фото: ${product.photos.size} шт.")
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Button(onClick = { selectedProduct = product }) { Text("Просмотр") }
+                                        Button(onClick = {
+                                            productForm = ProductFormState(
+                                                id = product.id,
+                                                name = product.name,
+                                                photos = product.photos.joinToString(", "),
+                                                calories = product.nutritionPer100g.calories.toString(),
+                                                proteins = product.nutritionPer100g.proteins.toString(),
+                                                fats = product.nutritionPer100g.fats.toString(),
+                                                carbs = product.nutritionPer100g.carbs.toString(),
+                                                composition = product.composition.orEmpty(),
+                                                category = product.category,
+                                                cookingRequirement = product.cookingRequirement,
+                                                flags = product.flags,
+                                            )
+                                            productError = null
+                                            productScreenMode = 1
+                                        }) { Text("Редактировать") }
+                                        Button(onClick = {
+                                            val usedBy = dishes.filter { d -> d.ingredients.any { it.productId == product.id } }
+                                            if (usedBy.isNotEmpty()) {
+                                                scope.launch {
+                                                    snackBarHostState.showSnackbar(
+                                                        "Удаление недоступно. Используется в блюдах: ${usedBy.joinToString { it.name }}"
+                                                    )
+                                                }
+                                            } else {
+                                                products.remove(product)
+                                            }
+                                        }) { Text("Удалить") }
+                                    }
+                                }
+                            }
+                        }
+                        if (filteredProducts.isEmpty()) {
+                            item { Text("Продукты не найдены", modifier = Modifier.padding(8.dp)) }
+                        }
+                    }
+                } else {
+                    ProductEditor(
+                        form = productForm,
+                        error = productError,
+                        onChange = { productForm = it },
+                        onSave = {
+                            runCatching {
+                                val normalizedPhotos = productForm.photos.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                                require(productForm.name.trim().length >= 2) { "Название продукта: минимум 2 символа" }
+                                require(normalizedPhotos.size <= 5) { "Можно указать максимум 5 фото" }
+                                val nutrition = Nutrition(
+                                    calories = productForm.calories.toDouble().also { require(it >= 0) },
+                                    proteins = productForm.proteins.toDouble().also { require(it >= 0) },
+                                    fats = productForm.fats.toDouble().also { require(it >= 0) },
+                                    carbs = productForm.carbs.toDouble().also { require(it >= 0) },
+                                )
+                                val entity = Product(
+                                    id = productForm.id ?: java.util.UUID.randomUUID().toString(),
+                                    name = productForm.name.trim(),
+                                    photos = normalizedPhotos,
+                                    nutritionPer100g = nutrition,
+                                    composition = productForm.composition.ifBlank { null },
+                                    category = productForm.category,
+                                    cookingRequirement = productForm.cookingRequirement,
+                                    flags = productForm.flags,
+                                    createdAt = products.firstOrNull { it.id == productForm.id }?.createdAt ?: Instant.now().toString(),
+                                    updatedAt = if (productForm.id == null) null else Instant.now().toString(),
+                                )
+                                val currentIndex = products.indexOfFirst { it.id == entity.id }
+                                if (currentIndex >= 0) products[currentIndex] = entity else products += entity
+                                productForm = ProductFormState()
+                                productError = null
+                                productScreenMode = 0
+                            }.onFailure { productError = it.message ?: "Ошибка сохранения" }
+                        },
+                        onClear = {
                             productForm = ProductFormState()
                             productError = null
-                        }.onFailure { productError = it.message ?: "Ошибка сохранения" }
-                    },
-                    onClear = {
-                        productForm = ProductFormState()
-                        productError = null
-                    }
-                )
-
-                ProductFilterBlock(
-                    search = productSearch,
-                    onSearchChange = { productSearch = it },
-                    categoryFilter = productCategoryFilter,
-                    onCategoryFilterChange = { productCategoryFilter = it },
-                    cookingFilter = cookingFilter,
-                    onCookingFilterChange = { cookingFilter = it },
-                    flagsFilter = productFlagsFilter,
-                    onFlagToggle = { flag ->
-                        productFlagsFilter = if (productFlagsFilter.contains(flag)) productFlagsFilter - flag else productFlagsFilter + flag
-                    },
-                    sort = productSort,
-                    onSortChange = { productSort = it }
-                )
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(filteredProducts, key = { it.id }) { product ->
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                Text(product.name, fontWeight = FontWeight.Bold)
-                                Text("Категория: ${product.category.label}")
-                                Text("Готовка: ${product.cookingRequirement.label}")
-                                Text("КБЖУ/100 г: ${pretty(product.nutritionPer100g)}")
-                                Text("Флаги: ${flagsText(product.flags)}")
-                                Text("Фото: ${product.photos.size} шт.")
-                                Text("Состав: ${product.composition ?: "—"}")
-                                Text("Создан: ${product.createdAt}")
-                                Text("Изменён: ${product.updatedAt ?: "—"}")
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Button(onClick = {
-                                        productForm = ProductFormState(
-                                            id = product.id,
-                                            name = product.name,
-                                            photos = product.photos.joinToString(", "),
-                                            calories = product.nutritionPer100g.calories.toString(),
-                                            proteins = product.nutritionPer100g.proteins.toString(),
-                                            fats = product.nutritionPer100g.fats.toString(),
-                                            carbs = product.nutritionPer100g.carbs.toString(),
-                                            composition = product.composition.orEmpty(),
-                                            category = product.category,
-                                            cookingRequirement = product.cookingRequirement,
-                                            flags = product.flags,
-                                        )
-                                    }) { Text("Редактировать") }
-                                    Button(onClick = {
-                                        val usedBy = dishes.filter { d -> d.ingredients.any { it.productId == product.id } }
-                                        if (usedBy.isNotEmpty()) {
-                                            scope.launch {
-                                                snackBarHostState.showSnackbar(
-                                                    "Удаление недоступно. Используется в блюдах: ${usedBy.joinToString { it.name }}"
-                                                )
-                                            }
-                                        } else {
-                                            products.remove(product)
-                                        }
-                                    }) { Text("Удалить") }
-                                }
-                            }
                         }
-                    }
+                    )
                 }
             } else {
-                DishEditor(
-                    form = dishForm,
-                    products = products,
-                    error = dishError,
-                    onChange = { dishForm = it },
-                    onSave = {
-                        runCatching {
-                            require(dishForm.name.trim().length >= 2) { "Название блюда: минимум 2 символа" }
-                            val photos = dishForm.photos.split(",").map { it.trim() }.filter { it.isNotBlank() }
-                            require(photos.size <= 5) { "Можно указать максимум 5 фото" }
-                            val ingredients = dishForm.ingredientGrams.mapNotNull { (productId, gramsText) ->
-                                val grams = gramsText.toDoubleOrNull() ?: return@mapNotNull null
-                                if (grams <= 0) return@mapNotNull null
-                                DishIngredient(productId, grams)
-                            }
-                            require(ingredients.isNotEmpty()) { "Нужно добавить минимум 1 продукт" }
-                            val portion = dishForm.portionSize.toDouble().also { require(it > 0) }
-                            val (cleanName, macroCategory) = resolveDishNameAndMacroCategory(dishForm.name)
-                            val category = dishForm.category ?: macroCategory
-                            requireNotNull(category) { "Укажите категорию или добавьте макрос в названии" }
-                            val nutrition = Nutrition(
-                                calories = dishForm.calories.toDouble().also { require(it >= 0) },
-                                proteins = dishForm.proteins.toDouble().also { require(it >= 0) },
-                                fats = dishForm.fats.toDouble().also { require(it >= 0) },
-                                carbs = dishForm.carbs.toDouble().also { require(it >= 0) },
-                            )
-                            val allowedFlags = allowedDishFlags(ingredients, productById)
-                            val entity = Dish(
-                                id = dishForm.id ?: java.util.UUID.randomUUID().toString(),
-                                name = cleanName,
-                                photos = photos,
-                                nutritionPerPortion = nutrition,
-                                ingredients = ingredients,
-                                portionSizeGrams = portion,
-                                category = category,
-                                flags = dishForm.flags.intersect(allowedFlags),
-                                createdAt = dishes.firstOrNull { it.id == dishForm.id }?.createdAt ?: Instant.now().toString(),
-                                updatedAt = if (dishForm.id == null) null else Instant.now().toString(),
-                            )
-                            val index = dishes.indexOfFirst { it.id == entity.id }
-                            if (index >= 0) dishes[index] = entity else dishes += entity
-                            dishForm = DishFormState()
-                            dishError = null
-                        }.onFailure { dishError = it.message ?: "Ошибка сохранения" }
-                    },
-                    onAutoFillNutrition = {
-                        val ingredients = dishForm.ingredientGrams.mapNotNull { (id, gramsText) ->
-                            val grams = gramsText.toDoubleOrNull() ?: return@mapNotNull null
-                            if (grams <= 0) return@mapNotNull null
-                            DishIngredient(id, grams)
+                TabRow(selectedTabIndex = dishScreenMode) {
+                    Tab(selected = dishScreenMode == 0, onClick = { dishScreenMode = 0 }, text = { Text("Список") })
+                    Tab(selected = dishScreenMode == 1, onClick = { dishScreenMode = 1 }, text = { Text("Форма") })
+                }
+                if (dishScreenMode == 0) {
+                    DishFilterBlock(
+                        search = dishSearch,
+                        onSearchChange = { dishSearch = it },
+                        categoryFilter = dishCategoryFilter,
+                        onCategoryFilterChange = { dishCategoryFilter = it },
+                        flagsFilter = dishFlagsFilter,
+                        onFlagToggle = { flag ->
+                            dishFlagsFilter = if (dishFlagsFilter.contains(flag)) dishFlagsFilter - flag else dishFlagsFilter + flag
                         }
-                        val nutrition = calculateNutrition(ingredients, productById)
-                        val allowedFlags = allowedDishFlags(ingredients, productById)
-                        dishForm = dishForm.copy(
-                            calories = nutrition.calories.toOneDecimal(),
-                            proteins = nutrition.proteins.toOneDecimal(),
-                            fats = nutrition.fats.toOneDecimal(),
-                            carbs = nutrition.carbs.toOneDecimal(),
-                            flags = dishForm.flags.intersect(allowedFlags),
-                        )
-                    },
-                    onClear = {
-                        dishForm = DishFormState()
-                        dishError = null
-                    }
-                )
-
-                DishFilterBlock(
-                    search = dishSearch,
-                    onSearchChange = { dishSearch = it },
-                    categoryFilter = dishCategoryFilter,
-                    onCategoryFilterChange = { dishCategoryFilter = it },
-                    flagsFilter = dishFlagsFilter,
-                    onFlagToggle = { flag ->
-                        dishFlagsFilter = if (dishFlagsFilter.contains(flag)) dishFlagsFilter - flag else dishFlagsFilter + flag
-                    }
-                )
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(filteredDishes, key = { it.id }) { dish ->
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                Text(dish.name, fontWeight = FontWeight.Bold)
-                                Text("Категория: ${dish.category.label}")
-                                Text("Размер порции: ${dish.portionSizeGrams} г")
-                                Text("КБЖУ/порция: ${pretty(dish.nutritionPerPortion)}")
-                                Text("Флаги: ${flagsText(dish.flags)}")
-                                Text("Фото: ${dish.photos.size} шт.")
-                                Text("Состав: ${dish.ingredients.joinToString { ingredient -> "${productById[ingredient.productId]?.name ?: "?"}: ${ingredient.grams} г" }}")
-                                Text("Создан: ${dish.createdAt}")
-                                Text("Изменён: ${dish.updatedAt ?: "—"}")
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Button(onClick = {
-                                        dishForm = DishFormState(
-                                            id = dish.id,
-                                            name = dish.name,
-                                            photos = dish.photos.joinToString(", "),
-                                            calories = dish.nutritionPerPortion.calories.toString(),
-                                            proteins = dish.nutritionPerPortion.proteins.toString(),
-                                            fats = dish.nutritionPerPortion.fats.toString(),
-                                            carbs = dish.nutritionPerPortion.carbs.toString(),
-                                            portionSize = dish.portionSizeGrams.toString(),
-                                            category = dish.category,
-                                            flags = dish.flags,
-                                            ingredientGrams = dish.ingredients.associate { it.productId to it.grams.toString() }
-                                        )
-                                    }) { Text("Редактировать") }
-                                    Button(onClick = { dishes.remove(dish) }) { Text("Удалить") }
+                    )
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
+                        items(filteredDishes, key = { it.id }) { dish ->
+                            Card(modifier = Modifier.fillMaxWidth()) {
+                                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text(dish.name, fontWeight = FontWeight.Bold)
+                                    Text("Категория: ${dish.category.label}")
+                                    Text("Размер порции: ${dish.portionSizeGrams} г")
+                                    Text("КБЖУ/порция: ${pretty(dish.nutritionPerPortion)}")
+                                    Text("Флаги: ${flagsText(dish.flags)}")
+                                    Text("Фото: ${dish.photos.size} шт.")
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Button(onClick = { selectedDish = dish }) { Text("Просмотр") }
+                                        Button(onClick = {
+                                            dishForm = DishFormState(
+                                                id = dish.id,
+                                                name = dish.name,
+                                                photos = dish.photos.joinToString(", "),
+                                                calories = dish.nutritionPerPortion.calories.toString(),
+                                                proteins = dish.nutritionPerPortion.proteins.toString(),
+                                                fats = dish.nutritionPerPortion.fats.toString(),
+                                                carbs = dish.nutritionPerPortion.carbs.toString(),
+                                                portionSize = dish.portionSizeGrams.toString(),
+                                                category = dish.category,
+                                                flags = dish.flags,
+                                                ingredientGrams = dish.ingredients.associate { it.productId to it.grams.toString() }
+                                            )
+                                            dishError = null
+                                            dishScreenMode = 1
+                                        }) { Text("Редактировать") }
+                                        Button(onClick = { dishes.remove(dish) }) { Text("Удалить") }
+                                    }
                                 }
                             }
                         }
+                        if (filteredDishes.isEmpty()) {
+                            item { Text("Блюда не найдены", modifier = Modifier.padding(8.dp)) }
+                        }
                     }
+                } else {
+                    DishEditor(
+                        form = dishForm,
+                        products = products,
+                        error = dishError,
+                        onChange = { dishForm = it },
+                        onSave = {
+                            runCatching {
+                                require(dishForm.name.trim().length >= 2) { "Название блюда: минимум 2 символа" }
+                                val photos = dishForm.photos.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                                require(photos.size <= 5) { "Можно указать максимум 5 фото" }
+                                val ingredients = dishForm.ingredientGrams.mapNotNull { (productId, gramsText) ->
+                                    val grams = gramsText.toDoubleOrNull() ?: return@mapNotNull null
+                                    if (grams <= 0) return@mapNotNull null
+                                    DishIngredient(productId, grams)
+                                }
+                                require(ingredients.isNotEmpty()) { "Нужно добавить минимум 1 продукт" }
+                                val portion = dishForm.portionSize.toDouble().also { require(it > 0) }
+                                val (cleanName, macroCategory) = resolveDishNameAndMacroCategory(dishForm.name)
+                                val category = dishForm.category ?: macroCategory
+                                requireNotNull(category) { "Укажите категорию или добавьте макрос в названии" }
+                                val nutrition = Nutrition(
+                                    calories = dishForm.calories.toDouble().also { require(it >= 0) },
+                                    proteins = dishForm.proteins.toDouble().also { require(it >= 0) },
+                                    fats = dishForm.fats.toDouble().also { require(it >= 0) },
+                                    carbs = dishForm.carbs.toDouble().also { require(it >= 0) },
+                                )
+                                val allowedFlags = allowedDishFlags(ingredients, productById)
+                                val entity = Dish(
+                                    id = dishForm.id ?: java.util.UUID.randomUUID().toString(),
+                                    name = cleanName,
+                                    photos = photos,
+                                    nutritionPerPortion = nutrition,
+                                    ingredients = ingredients,
+                                    portionSizeGrams = portion,
+                                    category = category,
+                                    flags = dishForm.flags.intersect(allowedFlags),
+                                    createdAt = dishes.firstOrNull { it.id == dishForm.id }?.createdAt ?: Instant.now().toString(),
+                                    updatedAt = if (dishForm.id == null) null else Instant.now().toString(),
+                                )
+                                val index = dishes.indexOfFirst { it.id == entity.id }
+                                if (index >= 0) dishes[index] = entity else dishes += entity
+                                dishForm = DishFormState()
+                                dishError = null
+                                dishScreenMode = 0
+                            }.onFailure { dishError = it.message ?: "Ошибка сохранения" }
+                        },
+                        onAutoFillNutrition = {
+                            val ingredients = dishForm.ingredientGrams.mapNotNull { (id, gramsText) ->
+                                val grams = gramsText.toDoubleOrNull() ?: return@mapNotNull null
+                                if (grams <= 0) return@mapNotNull null
+                                DishIngredient(id, grams)
+                            }
+                            val nutrition = calculateNutrition(ingredients, productById)
+                            val allowedFlags = allowedDishFlags(ingredients, productById)
+                            dishForm = dishForm.copy(
+                                calories = nutrition.calories.toOneDecimal(),
+                                proteins = nutrition.proteins.toOneDecimal(),
+                                fats = nutrition.fats.toOneDecimal(),
+                                carbs = nutrition.carbs.toOneDecimal(),
+                                flags = dishForm.flags.intersect(allowedFlags),
+                                )
+                        },
+                        onClear = {
+                            dishForm = DishFormState()
+                            dishError = null
+                        }
+                    )
                 }
             }
         }
@@ -400,8 +424,56 @@ fun RecipeBookApp() {
                 DishIngredient(id, grams)
             }
             val allowed = allowedDishFlags(ingredients, productById)
+            val nutrition = calculateNutrition(ingredients, productById)
             dishForm = dishForm.copy(flags = dishForm.flags.intersect(allowed))
+                .copy(
+                    calories = nutrition.calories.toOneDecimal(),
+                    proteins = nutrition.proteins.toOneDecimal(),
+                    fats = nutrition.fats.toOneDecimal(),
+                    carbs = nutrition.carbs.toOneDecimal(),
+                )
         }
+    }
+    selectedProduct?.let { product ->
+        AlertDialog(
+            onDismissRequest = { selectedProduct = null },
+            confirmButton = { TextButton(onClick = { selectedProduct = null }) { Text("Закрыть") } },
+            title = { Text("Просмотр продукта") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Название: ${product.name}")
+                    Text("Категория: ${product.category.label}")
+                    Text("Готовка: ${product.cookingRequirement.label}")
+                    Text("КБЖУ/100 г: ${pretty(product.nutritionPer100g)}")
+                    Text("Флаги: ${flagsText(product.flags)}")
+                    Text("Состав: ${product.composition ?: "—"}")
+                    Text("Фото: ${product.photos.joinToString().ifBlank { "—" }}")
+                    Text("Создан: ${product.createdAt}")
+                    Text("Изменён: ${product.updatedAt ?: "—"}")
+                }
+            }
+        )
+    }
+
+    selectedDish?.let { dish ->
+        AlertDialog(
+            onDismissRequest = { selectedDish = null },
+            confirmButton = { TextButton(onClick = { selectedDish = null }) { Text("Закрыть") } },
+            title = { Text("Просмотр блюда") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Название: ${dish.name}")
+                    Text("Категория: ${dish.category.label}")
+                    Text("Размер порции: ${dish.portionSizeGrams} г")
+                    Text("КБЖУ/порция: ${pretty(dish.nutritionPerPortion)}")
+                    Text("Флаги: ${flagsText(dish.flags)}")
+                    Text("Состав: ${dish.ingredients.joinToString { ingredient -> "${productById[ingredient.productId]?.name ?: "?"}: ${ingredient.grams} г" }}")
+                    Text("Фото: ${dish.photos.joinToString().ifBlank { "—" }}")
+                    Text("Создан: ${dish.createdAt}")
+                    Text("Изменён: ${dish.updatedAt ?: "—"}")
+                }
+            }
+        )
     }
 }
 
@@ -417,7 +489,7 @@ private fun ProductEditor(
         Text(if (form.id == null) "Создание продукта" else "Редактирование продукта", fontWeight = FontWeight.SemiBold)
         OutlinedTextField(form.name, { onChange(form.copy(name = it)) }, label = { Text("Название*") }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(form.photos, { onChange(form.copy(photos = it)) }, label = { Text("Фото (url через запятую, до 5)") }, modifier = Modifier.fillMaxWidth())
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             NutritionField("Ккал", form.calories) { onChange(form.copy(calories = it)) }
             NutritionField("Белки", form.proteins) { onChange(form.copy(proteins = it)) }
             NutritionField("Жиры", form.fats) { onChange(form.copy(fats = it)) }
@@ -496,7 +568,7 @@ private fun DishEditor(
             }
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             NutritionField("Ккал", form.calories) { onChange(form.copy(calories = it)) }
             NutritionField("Белки", form.proteins) { onChange(form.copy(proteins = it)) }
             NutritionField("Жиры", form.fats) { onChange(form.copy(fats = it)) }
@@ -613,7 +685,7 @@ private fun NutritionField(label: String, value: String, onValueChange: (String)
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },
-        modifier = Modifier.width(90.dp)
+        modifier = Modifier.width(120.dp)
     )
 }
 
