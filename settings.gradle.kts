@@ -21,4 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "RecipeBook"
 include(":app")
- 
+include(":server")
