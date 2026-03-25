@@ -20,5 +20,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "RecipeBook"
-include(":app")
+include(":app", ":server")
  
