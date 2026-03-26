@@ -12,20 +12,27 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Divider
+import androidx.compose.material3.ElevatedFilterChip
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -49,9 +56,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.hits.recipebook.ui.theme.RecipeBookTheme
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -205,7 +214,7 @@ fun RecipeBookApp() {
                             onSave = {
                                 runCatching {
                                     require(productForm.name.trim().length >= 2) { "Название продукта: минимум 2 символа" }
-                                    require(productForm.photos.size <= 5) { "Можно указать максимум 5 фото" }
+                                    require(productForm.photos.size <= 1) { "Можно указать только 1 фото" }
                                     val nutrition = Nutrition(
                                         calories = productForm.calories.toDouble()
                                             .also { require(it >= 0) },
@@ -275,11 +284,21 @@ fun RecipeBookApp() {
                                 verticalArrangement = Arrangement.spacedBy(3.dp)
                             ) {
                                 Text(product.name, fontWeight = FontWeight.Bold)
+                                product.photos.firstOrNull()?.let { photo ->
+                                    AsyncImage(
+                                        model = photo,
+                                        contentDescription = "Фото продукта ${product.name}",
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(160.dp),
+                                        contentScale = ContentScale.Crop,
+                                    )
+                                }
                                 Text("Категория: ${product.category.label}")
                                 Text("Готовка: ${product.cookingRequirement.label}")
                                 Text("КБЖУ/100 г: ${pretty(product.nutritionPer100g)}")
                                 Text("Флаги: ${flagsText(product.flags)}")
-                                Text("Фото: ${product.photos.size} шт.")
+                                Text("Фото: ${if (product.photos.isEmpty()) "нет" else "1 шт."}")
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Button(onClick = {
                                         selectedProduct = product
@@ -347,7 +366,7 @@ fun RecipeBookApp() {
                             onSave = {
                                 runCatching {
                                     require(dishForm.name.trim().length >= 2) { "Название блюда: минимум 2 символа" }
-                                    require(dishForm.photos.size <= 5) { "Можно указать максимум 5 фото" }
+                                    require(dishForm.photos.size <= 1) { "Можно указать только 1 фото" }
                                     val ingredients =
                                         dishForm.ingredientGrams.mapNotNull { (productId, gramsText) ->
                                             val grams =
@@ -442,11 +461,21 @@ fun RecipeBookApp() {
                                 verticalArrangement = Arrangement.spacedBy(3.dp)
                             ) {
                                 Text(dish.name, fontWeight = FontWeight.Bold)
+                                dish.photos.firstOrNull()?.let { photo ->
+                                    AsyncImage(
+                                        model = photo,
+                                        contentDescription = "Фото блюда ${dish.name}",
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(160.dp),
+                                        contentScale = ContentScale.Crop,
+                                    )
+                                }
                                 Text("Категория: ${dish.category.label}")
                                 Text("Размер порции: ${dish.portionSizeGrams} г")
                                 Text("КБЖУ/порция: ${pretty(dish.nutritionPerPortion)}")
                                 Text("Флаги: ${flagsText(dish.flags)}")
-                                Text("Фото: ${dish.photos.size} шт.")
+                                Text("Фото: ${if (dish.photos.isEmpty()) "нет" else "1 шт."}")
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Button(onClick = { selectedDish = dish }) { Text("Просмотр") }
                                     Button(onClick = {
@@ -553,9 +582,8 @@ private fun ProductEditor(
     onCancel: () -> Unit,
 ) {
     val launcher =
-        rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
-            val merged = (form.photos + uris.map { it.toString() }).distinct().take(5)
-            onChange(form.copy(photos = merged))
+        rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            onChange(form.copy(photos = uri?.let { listOf(it.toString()) } ?: emptyList()))
         }
 
     Column(
@@ -579,12 +607,12 @@ private fun ProductEditor(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Button(onClick = { launcher.launch("image/*") }, enabled = form.photos.size < 5) {
+            Button(onClick = { launcher.launch("image/*") }) {
                 Text(
-                    "Выбрать фото"
+                    "Выбрать фото (1)"
                 )
             }
-            Text("Выбрано: ${form.photos.size}/5")
+            Text("Выбрано: ${form.photos.size}/1")
         }
         if (form.photos.isNotEmpty()) {
             FlowRow(
@@ -657,9 +685,8 @@ private fun DishEditor(
     val allowedFlags = allowedDishFlags(ingredients, productById)
 
     val launcher =
-        rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
-            val merged = (form.photos + uris.map { it.toString() }).distinct().take(5)
-            onChange(form.copy(photos = merged))
+        rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            onChange(form.copy(photos = uri?.let { listOf(it.toString()) } ?: emptyList()))
         }
 
     Column(
@@ -689,12 +716,12 @@ private fun DishEditor(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Button(onClick = { launcher.launch("image/*") }, enabled = form.photos.size < 5) {
+            Button(onClick = { launcher.launch("image/*") }) {
                 Text(
-                    "Выбрать фото"
+                    "Выбрать фото (1)"
                 )
             }
-            Text("Выбрано: ${form.photos.size}/5")
+            Text("Выбрано: ${form.photos.size}/1")
         }
         if (form.photos.isNotEmpty()) {
             FlowRow(
@@ -803,6 +830,7 @@ private fun ProductFilterBlock(
     sort: ProductSort,
     onSortChange: (ProductSort) -> Unit,
 ) {
+    var isExpanded by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         OutlinedTextField(
             search,
@@ -810,55 +838,62 @@ private fun ProductFilterBlock(
             label = { Text("Поиск продукта") },
             modifier = Modifier.fillMaxWidth()
         )
-        Text("Категория")
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            FilterChip(
-                selected = categoryFilter == null,
-                onClick = { onCategoryFilterChange(null) },
-                label = { Text("Все") })
-            ProductCategory.entries.forEach {
-                FilterChip(
-                    selected = categoryFilter == it,
-                    onClick = { onCategoryFilterChange(it) },
-                    label = { Text(it.label) })
-            }
+        FilledTonalButton(onClick = { isExpanded = !isExpanded }, modifier = Modifier.fillMaxWidth()) {
+            Text(if (isExpanded) "Скрыть фильтры и сортировку" else "Открыть фильтры и сортировку")
+            Icon(
+                imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = null,
+                modifier = Modifier.padding(start = 8.dp)
+            )
         }
-        Text("Готовка")
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            FilterChip(
-                selected = cookingFilter == null,
-                onClick = { onCookingFilterChange(null) },
-                label = { Text("Все") })
-            CookingRequirement.entries.forEach {
+        if (isExpanded) {
+            Text("Категория")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 FilterChip(
-                    selected = cookingFilter == it,
-                    onClick = { onCookingFilterChange(it) },
-                    label = { Text(it.label) })
+                    selected = categoryFilter == null,
+                    onClick = { onCategoryFilterChange(null) },
+                    label = { Text("Все") })
+                ProductCategory.entries.forEach {
+                    FilterChip(
+                        selected = categoryFilter == it,
+                        onClick = { onCategoryFilterChange(it) },
+                        label = { Text(it.label) })
+                }
             }
-        }
-        Text("Флаги")
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            ExtraFlag.entries.forEach { flag ->
+            Text("Готовка")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 FilterChip(
-                    selected = flagsFilter.contains(flag),
-                    onClick = { onFlagToggle(flag) },
-                    label = { Text(flag.label) })
+                    selected = cookingFilter == null,
+                    onClick = { onCookingFilterChange(null) },
+                    label = { Text("Все") })
+                CookingRequirement.entries.forEach {
+                    FilterChip(
+                        selected = cookingFilter == it,
+                        onClick = { onCookingFilterChange(it) },
+                        label = { Text(it.label) })
+                }
             }
-        }
-        Text("Сортировка")
-        SingleChoiceSegmentedButtonRow {
-            ProductSort.entries.forEachIndexed { index, option ->
-                SegmentedButton(
-                    selected = sort == option,
-                    onClick = { onSortChange(option) },
-                    shape = SegmentedButtonDefaults.itemShape(
-                        index = index,
-                        count = ProductSort.entries.size
+            Text("Флаги")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                ExtraFlag.entries.forEach { flag ->
+                    FilterChip(
+                        selected = flagsFilter.contains(flag),
+                        onClick = { onFlagToggle(flag) },
+                        label = { Text(flag.label) })
+                }
+            }
+            Text("Сортировка")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                ProductSort.entries.forEach { option ->
+                    ElevatedFilterChip(
+                        selected = sort == option,
+                        onClick = { onSortChange(option) },
+                        label = { Text(option.label) }
                     )
-                ) { Text(option.label) }
+                }
             }
+            Divider(Modifier.padding(vertical = 4.dp))
         }
-        Divider(Modifier.padding(vertical = 4.dp))
     }
 }
 
@@ -871,6 +906,7 @@ private fun DishFilterBlock(
     flagsFilter: Set<ExtraFlag>,
     onFlagToggle: (ExtraFlag) -> Unit,
 ) {
+    var isExpanded by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         OutlinedTextField(
             search,
@@ -878,29 +914,39 @@ private fun DishFilterBlock(
             label = { Text("Поиск блюда") },
             modifier = Modifier.fillMaxWidth()
         )
-        Text("Категория")
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            FilterChip(
-                selected = categoryFilter == null,
-                onClick = { onCategoryFilterChange(null) },
-                label = { Text("Все") })
-            DishCategory.entries.forEach {
-                FilterChip(
-                    selected = categoryFilter == it,
-                    onClick = { onCategoryFilterChange(it) },
-                    label = { Text(it.label) })
-            }
+        FilledTonalButton(onClick = { isExpanded = !isExpanded }, modifier = Modifier.fillMaxWidth()) {
+            Text(if (isExpanded) "Скрыть фильтры" else "Открыть фильтры")
+            Icon(
+                imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = null,
+                modifier = Modifier.padding(start = 8.dp)
+            )
         }
-        Text("Флаги")
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            ExtraFlag.entries.forEach { flag ->
+        if (isExpanded) {
+            Text("Категория")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 FilterChip(
-                    selected = flagsFilter.contains(flag),
-                    onClick = { onFlagToggle(flag) },
-                    label = { Text(flag.label) })
+                    selected = categoryFilter == null,
+                    onClick = { onCategoryFilterChange(null) },
+                    label = { Text("Все") })
+                DishCategory.entries.forEach {
+                    FilterChip(
+                        selected = categoryFilter == it,
+                        onClick = { onCategoryFilterChange(it) },
+                        label = { Text(it.label) })
+                }
             }
+            Text("Флаги")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                ExtraFlag.entries.forEach { flag ->
+                    FilterChip(
+                        selected = flagsFilter.contains(flag),
+                        onClick = { onFlagToggle(flag) },
+                        label = { Text(flag.label) })
+                }
+            }
+            Divider(Modifier.padding(vertical = 4.dp))
         }
-        Divider(Modifier.padding(vertical = 4.dp))
     }
 }
 
