@@ -103,6 +103,7 @@ data class DishFormState(
     val category: DishCategory? = null,
     val flags: Set<ExtraFlag> = emptySet(),
     val ingredientGrams: Map<String, String> = emptyMap(),
+    val isNutritionManuallyEdited: Boolean = false,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -214,17 +215,20 @@ fun RecipeBookApp() {
                             onSave = {
                                 runCatching {
                                     require(productForm.name.trim().length >= 2) { "Название продукта: минимум 2 символа" }
-                                    require(productForm.photos.size <= 1) { "Можно указать только 1 фото" }
+                                    require(productForm.photos.size <= 5) { "Можно указать не более 5 фото" }
                                     val nutrition = Nutrition(
                                         calories = productForm.calories.toDouble()
                                             .also { require(it >= 0) },
                                         proteins = productForm.proteins.toDouble()
-                                            .also { require(it >= 0) },
+                                            .also { require(it in 0.0..100.0) },
                                         fats = productForm.fats.toDouble()
-                                            .also { require(it >= 0) },
+                                            .also { require(it in 0.0..100.0) },
                                         carbs = productForm.carbs.toDouble()
-                                            .also { require(it >= 0) },
+                                            .also { require(it in 0.0..100.0) },
                                     )
+                                    require(nutrition.proteins + nutrition.fats + nutrition.carbs <= 100.0) {
+                                        "Сумма БЖУ на 100 г не может превышать 100"
+                                    }
                                     val entity = Product(
                                         id = productForm.id ?: java.util.UUID.randomUUID()
                                             .toString(),
@@ -299,7 +303,10 @@ fun RecipeBookApp() {
                                 Text("КБЖУ/100 г: ${pretty(product.nutritionPer100g)}")
                                 Text("Флаги: ${flagsText(product.flags)}")
                                 Text("Фото: ${if (product.photos.isEmpty()) "нет" else "1 шт."}")
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
                                     Button(onClick = {
                                         selectedProduct = product
                                     }) { Text("Просмотр") }
@@ -366,7 +373,7 @@ fun RecipeBookApp() {
                             onSave = {
                                 runCatching {
                                     require(dishForm.name.trim().length >= 2) { "Название блюда: минимум 2 символа" }
-                                    require(dishForm.photos.size <= 1) { "Можно указать только 1 фото" }
+                                    require(dishForm.photos.size <= 5) { "Можно указать не более 5 фото" }
                                     val ingredients =
                                         dishForm.ingredientGrams.mapNotNull { (productId, gramsText) ->
                                             val grams =
@@ -386,10 +393,13 @@ fun RecipeBookApp() {
                                         calories = dishForm.calories.toDouble()
                                             .also { require(it >= 0) },
                                         proteins = dishForm.proteins.toDouble()
-                                            .also { require(it >= 0) },
-                                        fats = dishForm.fats.toDouble().also { require(it >= 0) },
-                                        carbs = dishForm.carbs.toDouble().also { require(it >= 0) },
+                                            .also { require(it in 0.0..100.0) },
+                                        fats = dishForm.fats.toDouble().also { require(it in 0.0..100.0) },
+                                        carbs = dishForm.carbs.toDouble().also { require(it in 0.0..100.0) },
                                     )
+                                    require(nutrition.proteins + nutrition.fats + nutrition.carbs <= 100.0) {
+                                        "Сумма БЖУ не может превышать 100"
+                                    }
                                     val allowedFlags = allowedDishFlags(ingredients, productById)
                                     val entity = Dish(
                                         id = dishForm.id ?: java.util.UUID.randomUUID().toString(),
@@ -428,6 +438,7 @@ fun RecipeBookApp() {
                                     fats = nutrition.fats.toOneDecimal(),
                                     carbs = nutrition.carbs.toOneDecimal(),
                                     flags = dishForm.flags.intersect(allowedFlags),
+                                    isNutritionManuallyEdited = false,
                                 )
                             },
                             onCancel = {
@@ -476,7 +487,10 @@ fun RecipeBookApp() {
                                 Text("КБЖУ/порция: ${pretty(dish.nutritionPerPortion)}")
                                 Text("Флаги: ${flagsText(dish.flags)}")
                                 Text("Фото: ${if (dish.photos.isEmpty()) "нет" else "1 шт."}")
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
                                     Button(onClick = { selectedDish = dish }) { Text("Просмотр") }
                                     Button(onClick = {
                                         dishForm = DishFormState(
@@ -490,7 +504,8 @@ fun RecipeBookApp() {
                                             portionSize = dish.portionSizeGrams.toString(),
                                             category = dish.category,
                                             flags = dish.flags,
-                                            ingredientGrams = dish.ingredients.associate { it.productId to it.grams.toString() }
+                                            ingredientGrams = dish.ingredients.associate { it.productId to it.grams.toString() },
+                                            isNutritionManuallyEdited = true,
                                         )
                                         dishError = null
                                         isDishEditorVisible = true
@@ -518,11 +533,12 @@ fun RecipeBookApp() {
             }
             val allowed = allowedDishFlags(ingredients, productById)
             val nutrition = calculateNutrition(ingredients, productById)
-            dishForm = dishForm.copy(flags = dishForm.flags.intersect(allowed)).copy(
-                calories = nutrition.calories.toOneDecimal(),
-                proteins = nutrition.proteins.toOneDecimal(),
-                fats = nutrition.fats.toOneDecimal(),
-                carbs = nutrition.carbs.toOneDecimal(),
+            dishForm = dishForm.copy(
+                flags = dishForm.flags.intersect(allowed),
+                calories = if (dishForm.isNutritionManuallyEdited) dishForm.calories else nutrition.calories.toOneDecimal(),
+                proteins = if (dishForm.isNutritionManuallyEdited) dishForm.proteins else nutrition.proteins.toOneDecimal(),
+                fats = if (dishForm.isNutritionManuallyEdited) dishForm.fats else nutrition.fats.toOneDecimal(),
+                carbs = if (dishForm.isNutritionManuallyEdited) dishForm.carbs else nutrition.carbs.toOneDecimal(),
             )
         }
     }
@@ -583,7 +599,8 @@ private fun ProductEditor(
 ) {
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-            onChange(form.copy(photos = uri?.let { listOf(it.toString()) } ?: emptyList()))
+            if (uri == null || form.photos.size >= 5) return@rememberLauncherForActivityResult
+            onChange(form.copy(photos = form.photos + uri.toString()))
         }
 
     Column(
@@ -609,10 +626,10 @@ private fun ProductEditor(
         ) {
             Button(onClick = { launcher.launch("image/*") }) {
                 Text(
-                    "Выбрать фото (1)"
+                    "Добавить фото"
                 )
             }
-            Text("Выбрано: ${form.photos.size}/1")
+            Text("Выбрано: ${form.photos.size}/5")
         }
         if (form.photos.isNotEmpty()) {
             FlowRow(
@@ -659,7 +676,10 @@ private fun ProductEditor(
             onChange(form.copy(flags = if (form.flags.contains(flag)) form.flags - flag else form.flags + flag))
         }
         if (error != null) Text(error, color = MaterialTheme.colorScheme.error)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             Button(onClick = onSave) { Text(if (form.id == null) "Создать" else "Сохранить") }
             Button(onClick = onCancel) { Text("Отмена") }
         }
@@ -686,7 +706,8 @@ private fun DishEditor(
 
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-            onChange(form.copy(photos = uri?.let { listOf(it.toString()) } ?: emptyList()))
+            if (uri == null || form.photos.size >= 5) return@rememberLauncherForActivityResult
+            onChange(form.copy(photos = form.photos + uri.toString()))
         }
 
     Column(
@@ -718,10 +739,10 @@ private fun DishEditor(
         ) {
             Button(onClick = { launcher.launch("image/*") }) {
                 Text(
-                    "Выбрать фото (1)"
+                    "Добавить фото"
                 )
             }
-            Text("Выбрано: ${form.photos.size}/1")
+            Text("Выбрано: ${form.photos.size}/5")
         }
         if (form.photos.isNotEmpty()) {
             FlowRow(
@@ -784,10 +805,10 @@ private fun DishEditor(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            NutritionField("Ккал", form.calories) { onChange(form.copy(calories = it)) }
-            NutritionField("Белки", form.proteins) { onChange(form.copy(proteins = it)) }
-            NutritionField("Жиры", form.fats) { onChange(form.copy(fats = it)) }
-            NutritionField("Углев.", form.carbs) { onChange(form.copy(carbs = it)) }
+            NutritionField("Ккал", form.calories) { onChange(form.copy(calories = it, isNutritionManuallyEdited = true)) }
+            NutritionField("Белки", form.proteins) { onChange(form.copy(proteins = it, isNutritionManuallyEdited = true)) }
+            NutritionField("Жиры", form.fats) { onChange(form.copy(fats = it, isNutritionManuallyEdited = true)) }
+            NutritionField("Углев.", form.carbs) { onChange(form.copy(carbs = it, isNutritionManuallyEdited = true)) }
         }
         Button(onClick = onAutoFillNutrition) { Text("Автоматически рассчитать КБЖУ") }
 
@@ -809,7 +830,10 @@ private fun DishEditor(
             }
         }
         if (error != null) Text(error, color = MaterialTheme.colorScheme.error)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             Button(onClick = onSave) { Text(if (form.id == null) "Создать" else "Сохранить") }
             Button(onClick = onCancel) { Text("Отмена") }
         }

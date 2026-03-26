@@ -48,7 +48,7 @@ fun Application.recipeBookModule(service: RecipeService) {
         exception<ProductDeletionBlockedException> { call, cause ->
             call.respond(
                 HttpStatusCode.Conflict,
-                DeletionBlockedResponse("Product is used by dishes", cause.dishIds)
+                DeletionBlockedResponse("Product is used by dishes", cause.dishNames)
             )
         }
     }

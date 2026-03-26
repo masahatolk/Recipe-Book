@@ -43,7 +43,7 @@ class RecipeService(private val repository: RecipeRepository) {
     fun deleteProduct(id: String) {
         val dishesWithProduct = repository.dishes().filter { d -> d.ingredients.any { it.productId == id } }
         require(dishesWithProduct.isEmpty()) {
-            throw ProductDeletionBlockedException(dishesWithProduct.map { it.id })
+            throw ProductDeletionBlockedException(dishesWithProduct.map { it.name })
         }
         val products = repository.products().filterNot { it.id == id }
         repository.saveProducts(products)
@@ -129,11 +129,9 @@ class RecipeService(private val repository: RecipeRepository) {
 
     private fun applyDishAutofill(dish: Dish): Dish {
         val (titleWithoutMacro, macroCategory) = resolveMacroCategory(dish.name)
-        val nutritionDraft = calculateNutrition(dish.ingredients)
         val allowedFlags = availableFlags(dish.ingredients)
         return dish.copy(
             name = titleWithoutMacro,
-            nutritionPerPortion = nutritionDraft,
             flags = dish.flags.intersect(allowedFlags),
             category = dish.category.takeIf { it in DishCategory.entries } ?: macroCategory ?: DishCategory.SNACK,
         )
@@ -142,7 +140,13 @@ class RecipeService(private val repository: RecipeRepository) {
     private fun validateProduct(product: Product) {
         require(product.name.length >= 2) { "Product name min length is 2" }
         require(product.photos.size <= 5) { "Max 5 photos" }
-        require(product.nutritionPer100g.calories >= 0 && product.nutritionPer100g.proteins >= 0 && product.nutritionPer100g.fats >= 0 && product.nutritionPer100g.carbs >= 0)
+        require(product.nutritionPer100g.calories >= 0) { "Calories must be >= 0" }
+        require(product.nutritionPer100g.proteins in 0.0..100.0) { "Proteins must be in [0, 100]" }
+        require(product.nutritionPer100g.fats in 0.0..100.0) { "Fats must be in [0, 100]" }
+        require(product.nutritionPer100g.carbs in 0.0..100.0) { "Carbs must be in [0, 100]" }
+        require(
+            product.nutritionPer100g.proteins + product.nutritionPer100g.fats + product.nutritionPer100g.carbs <= 100.0
+        ) { "Proteins + fats + carbs must be <= 100" }
     }
 
     private fun validateDish(dish: Dish) {
@@ -151,6 +155,13 @@ class RecipeService(private val repository: RecipeRepository) {
         require(dish.portionSizeGrams > 0) { "Portion size must be positive" }
         require(dish.ingredients.isNotEmpty()) { "Dish should contain at least one ingredient" }
         require(dish.ingredients.all { it.grams > 0 }) { "Ingredient grams must be positive" }
+        require(dish.nutritionPerPortion.calories >= 0) { "Calories must be >= 0" }
+        require(dish.nutritionPerPortion.proteins in 0.0..100.0) { "Proteins must be in [0, 100]" }
+        require(dish.nutritionPerPortion.fats in 0.0..100.0) { "Fats must be in [0, 100]" }
+        require(dish.nutritionPerPortion.carbs in 0.0..100.0) { "Carbs must be in [0, 100]" }
+        require(
+            dish.nutritionPerPortion.proteins + dish.nutritionPerPortion.fats + dish.nutritionPerPortion.carbs <= 100.0
+        ) { "Proteins + fats + carbs must be <= 100" }
     }
 
     private fun productComparator(sortBy: String): Comparator<Product> = when (sortBy.lowercase()) {
@@ -162,4 +173,4 @@ class RecipeService(private val repository: RecipeRepository) {
     }
 }
 
-class ProductDeletionBlockedException(val dishIds: List<String>) : RuntimeException("Product is used in dishes")
+class ProductDeletionBlockedException(val dishNames: List<String>) : RuntimeException("Product is used in dishes")

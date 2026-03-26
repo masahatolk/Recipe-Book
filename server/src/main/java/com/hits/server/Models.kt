@@ -77,5 +77,5 @@ data class DishFilter(
 @Serializable
 data class DeletionBlockedResponse(
     val message: String,
-    val dishIds: List<String>,
+    val dishNames: List<String>,
 )
