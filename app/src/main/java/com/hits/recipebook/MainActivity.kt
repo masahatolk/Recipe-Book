@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -144,12 +145,12 @@ fun RecipeBookApp() {
 
     var tab by remember { mutableIntStateOf(0) }
     var productSearch by remember { mutableStateOf("") }
-    var productCategoryFilter by remember { mutableStateOf<ProductCategory?>(null) }
-    var cookingFilter by remember { mutableStateOf<CookingRequirement?>(null) }
+    var productCategoryFilter by remember { mutableStateOf(setOf<ProductCategory>()) }
+    var cookingFilter by remember { mutableStateOf(setOf<CookingRequirement>()) }
     var productFlagsFilter by remember { mutableStateOf(setOf<ExtraFlag>()) }
     var productSort by remember { mutableStateOf(ProductSort.NAME) }
     var dishSearch by remember { mutableStateOf("") }
-    var dishCategoryFilter by remember { mutableStateOf<DishCategory?>(null) }
+    var dishCategoryFilter by remember { mutableStateOf(setOf<DishCategory>()) }
     var dishFlagsFilter by remember { mutableStateOf(setOf<ExtraFlag>()) }
 
     var productForm by remember { mutableStateOf(ProductFormState()) }
@@ -168,8 +169,8 @@ fun RecipeBookApp() {
 
     val filteredProducts = products
         .filter { productSearch.isBlank() || it.name.contains(productSearch, ignoreCase = true) }
-        .filter { productCategoryFilter == null || it.category == productCategoryFilter }
-        .filter { cookingFilter == null || it.cookingRequirement == cookingFilter }
+        .filter { productCategoryFilter.isEmpty() || productCategoryFilter.contains(it.category) }
+        .filter { cookingFilter.isEmpty() || cookingFilter.contains(it.cookingRequirement) }
         .filter { it.flags.containsAll(productFlagsFilter) }
         .sortedWith(
             when (productSort) {
@@ -183,7 +184,7 @@ fun RecipeBookApp() {
 
     val filteredDishes = dishes
         .filter { dishSearch.isBlank() || it.name.contains(dishSearch, ignoreCase = true) }
-        .filter { dishCategoryFilter == null || it.category == dishCategoryFilter }
+        .filter { dishCategoryFilter.isEmpty() || dishCategoryFilter.contains(it.category) }
         .filter { it.flags.containsAll(dishFlagsFilter) }
 
     Scaffold(
@@ -294,9 +295,19 @@ fun RecipeBookApp() {
                     search = productSearch,
                     onSearchChange = { productSearch = it },
                     categoryFilter = productCategoryFilter,
-                    onCategoryFilterChange = { productCategoryFilter = it },
+                    onCategoryFilterToggle = { category ->
+                        productCategoryFilter =
+                            if (productCategoryFilter.contains(category)) productCategoryFilter - category
+                            else productCategoryFilter + category
+                    },
+                    onCategoryFilterReset = { productCategoryFilter = emptySet() },
                     cookingFilter = cookingFilter,
-                    onCookingFilterChange = { cookingFilter = it },
+                    onCookingFilterToggle = { cooking ->
+                        cookingFilter =
+                            if (cookingFilter.contains(cooking)) cookingFilter - cooking
+                            else cookingFilter + cooking
+                    },
+                    onCookingFilterReset = { cookingFilter = emptySet() },
                     flagsFilter = productFlagsFilter,
                     onFlagToggle = { flag ->
                         productFlagsFilter =
@@ -484,7 +495,12 @@ fun RecipeBookApp() {
                     search = dishSearch,
                     onSearchChange = { dishSearch = it },
                     categoryFilter = dishCategoryFilter,
-                    onCategoryFilterChange = { dishCategoryFilter = it },
+                    onCategoryFilterToggle = { category ->
+                        dishCategoryFilter =
+                            if (dishCategoryFilter.contains(category)) dishCategoryFilter - category
+                            else dishCategoryFilter + category
+                    },
+                    onCategoryFilterReset = { dishCategoryFilter = emptySet() },
                     flagsFilter = dishFlagsFilter,
                     onFlagToggle = { flag ->
                         dishFlagsFilter =
@@ -853,10 +869,12 @@ private fun DishEditor(
 private fun ProductFilterBlock(
     search: String,
     onSearchChange: (String) -> Unit,
-    categoryFilter: ProductCategory?,
-    onCategoryFilterChange: (ProductCategory?) -> Unit,
-    cookingFilter: CookingRequirement?,
-    onCookingFilterChange: (CookingRequirement?) -> Unit,
+    categoryFilter: Set<ProductCategory>,
+    onCategoryFilterToggle: (ProductCategory) -> Unit,
+    onCategoryFilterReset: () -> Unit,
+    cookingFilter: Set<CookingRequirement>,
+    onCookingFilterToggle: (CookingRequirement) -> Unit,
+    onCookingFilterReset: () -> Unit,
     flagsFilter: Set<ExtraFlag>,
     onFlagToggle: (ExtraFlag) -> Unit,
     sort: ProductSort,
@@ -882,64 +900,60 @@ private fun ProductFilterBlock(
             )
         }
         if (isExpanded) {
-            Text("Категория")
-            FlowRow(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 280.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                FilterChip(
-                    selected = categoryFilter == null,
-                    onClick = { onCategoryFilterChange(null) },
-                    label = { Text("Все") })
-                ProductCategory.entries.forEach {
+                Text("Категория")
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     FilterChip(
-                        selected = categoryFilter == it,
-                        onClick = { onCategoryFilterChange(it) },
-                        label = { Text(it.label) })
+                        selected = categoryFilter.isEmpty(),
+                        onClick = onCategoryFilterReset,
+                        label = { Text("Все") })
+                    ProductCategory.entries.forEach {
+                        FilterChip(
+                            selected = categoryFilter.contains(it),
+                            onClick = { onCategoryFilterToggle(it) },
+                            label = { Text(it.label) })
+                    }
                 }
-            }
-            Text("Готовка")
-            FlowRow(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                FilterChip(
-                    selected = cookingFilter == null,
-                    onClick = { onCookingFilterChange(null) },
-                    label = { Text("Все") })
-                CookingRequirement.entries.forEach {
+                Text("Готовка")
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     FilterChip(
-                        selected = cookingFilter == it,
-                        onClick = { onCookingFilterChange(it) },
-                        label = { Text(it.label) })
+                        selected = cookingFilter.isEmpty(),
+                        onClick = onCookingFilterReset,
+                        label = { Text("Все") })
+                    CookingRequirement.entries.forEach {
+                        FilterChip(
+                            selected = cookingFilter.contains(it),
+                            onClick = { onCookingFilterToggle(it) },
+                            label = { Text(it.label) })
+                    }
                 }
-            }
-            Text("Флаги")
-            FlowRow(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                ExtraFlag.entries.forEach { flag ->
-                    FilterChip(
-                        selected = flagsFilter.contains(flag),
-                        onClick = { onFlagToggle(flag) },
-                        label = { Text(flag.label) })
+                Text("Флаги")
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ExtraFlag.entries.forEach { flag ->
+                        FilterChip(
+                            selected = flagsFilter.contains(flag),
+                            onClick = { onFlagToggle(flag) },
+                            label = { Text(flag.label) })
+                    }
                 }
-            }
-            Text("Сортировка")
-            FlowRow(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                ProductSort.entries.forEach { option ->
-                    ElevatedFilterChip(
-                        selected = sort == option,
-                        onClick = { onSortChange(option) },
-                        label = { Text(option.label) }
-                    )
+                Text("Сортировка")
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ProductSort.entries.forEach { option ->
+                        ElevatedFilterChip(
+                            selected = sort == option,
+                            onClick = { onSortChange(option) },
+                            label = { Text(option.label) }
+                        )
+                    }
                 }
+                Divider(Modifier.padding(vertical = 4.dp))
             }
-            Divider(Modifier.padding(vertical = 4.dp))
         }
     }
 }
@@ -948,8 +962,9 @@ private fun ProductFilterBlock(
 private fun DishFilterBlock(
     search: String,
     onSearchChange: (String) -> Unit,
-    categoryFilter: DishCategory?,
-    onCategoryFilterChange: (DishCategory?) -> Unit,
+    categoryFilter: Set<DishCategory>,
+    onCategoryFilterToggle: (DishCategory) -> Unit,
+    onCategoryFilterReset: () -> Unit,
     flagsFilter: Set<ExtraFlag>,
     onFlagToggle: (ExtraFlag) -> Unit,
 ) {
@@ -973,35 +988,37 @@ private fun DishFilterBlock(
             )
         }
         if (isExpanded) {
-            Text("Категория")
-            FlowRow(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 240.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                FilterChip(
-                    selected = categoryFilter == null,
-                    onClick = { onCategoryFilterChange(null) },
-                    label = { Text("Все") })
-                DishCategory.entries.forEach {
+                Text("Категория")
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     FilterChip(
-                        selected = categoryFilter == it,
-                        onClick = { onCategoryFilterChange(it) },
-                        label = { Text(it.label) })
+                        selected = categoryFilter.isEmpty(),
+                        onClick = onCategoryFilterReset,
+                        label = { Text("Все") })
+                    DishCategory.entries.forEach {
+                        FilterChip(
+                            selected = categoryFilter.contains(it),
+                            onClick = { onCategoryFilterToggle(it) },
+                            label = { Text(it.label) })
+                    }
                 }
-            }
-            Text("Флаги")
-            FlowRow(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                ExtraFlag.entries.forEach { flag ->
-                    FilterChip(
-                        selected = flagsFilter.contains(flag),
-                        onClick = { onFlagToggle(flag) },
-                        label = { Text(flag.label) })
+                Text("Флаги")
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ExtraFlag.entries.forEach { flag ->
+                        FilterChip(
+                            selected = flagsFilter.contains(flag),
+                            onClick = { onFlagToggle(flag) },
+                            label = { Text(flag.label) })
+                    }
                 }
+                Divider(Modifier.padding(vertical = 4.dp))
             }
-            Divider(Modifier.padding(vertical = 4.dp))
         }
     }
 }
@@ -1056,7 +1073,8 @@ private fun PhotoCarousel(
     photos: List<String>,
     title: String,
     modifier: Modifier = Modifier,
-    imageHeight: Int = 160,
+    imageHeight: Int? = 160,
+    contentScale: ContentScale = ContentScale.Crop,
 ) {
     if (photos.isEmpty()) return
     var index by remember(photos) { mutableIntStateOf(0) }
@@ -1066,8 +1084,8 @@ private fun PhotoCarousel(
             contentDescription = "$title ${index + 1}",
             modifier = Modifier
                 .fillMaxWidth()
-                .height(imageHeight.dp),
-            contentScale = ContentScale.Crop,
+                .then(if (imageHeight != null) Modifier.height(imageHeight.dp) else Modifier),
+            contentScale = contentScale,
         )
         if (photos.size > 1) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1099,7 +1117,12 @@ private fun ProductDetailsScreen(product: Product, onBack: () -> Unit) {
             Text("Просмотр продукта", fontWeight = FontWeight.SemiBold)
         }
         Text("Название: ${product.name}")
-        PhotoCarousel(product.photos, "Фото продукта ${product.name}", imageHeight = 220)
+        PhotoCarousel(
+            product.photos,
+            "Фото продукта ${product.name}",
+            imageHeight = null,
+            contentScale = ContentScale.Fit,
+        )
         Text("Категория: ${product.category.label}")
         Text("Готовка: ${product.cookingRequirement.label}")
         Text("КБЖУ/100 г: ${pretty(product.nutritionPer100g)}")
@@ -1130,7 +1153,12 @@ private fun DishDetailsScreen(
             Text("Просмотр блюда", fontWeight = FontWeight.SemiBold)
         }
         Text("Название: ${dish.name}")
-        PhotoCarousel(dish.photos, "Фото блюда ${dish.name}", imageHeight = 220)
+        PhotoCarousel(
+            dish.photos,
+            "Фото блюда ${dish.name}",
+            imageHeight = null,
+            contentScale = ContentScale.Fit,
+        )
         Text("Категория: ${dish.category.label}")
         Text("Размер порции: ${dish.portionSizeGrams} г")
         Text("КБЖУ/порция: ${pretty(dish.nutritionPerPortion)}")
