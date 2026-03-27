@@ -119,12 +119,23 @@ class RecipeService(private val repository: RecipeRepository) {
             "!суп" to DishCategory.SOUP,
             "!перекус" to DishCategory.SNACK,
         )
-        val words = name.split(" ").toMutableList()
-        val firstMacroIndex = words.indexOfFirst { macros.containsKey(it.lowercase()) }
-        if (firstMacroIndex == -1) return name to null
-        val category = macros[words[firstMacroIndex].lowercase()]
-        words.removeAt(firstMacroIndex)
-        return words.joinToString(" ").trim() to category
+        val normalizedName = name.trim()
+        val lower = normalizedName.lowercase()
+        val firstMacroMatch = macros.entries
+            .mapNotNull { entry ->
+                val index = lower.indexOf(entry.key)
+                if (index >= 0) entry to index else null
+            }
+            .minByOrNull { it.second }
+            ?: return normalizedName to null
+        val macro = firstMacroMatch.first.key
+        val category = firstMacroMatch.first.value
+        val macroIndex = firstMacroMatch.second
+        val cleaned = buildString {
+            append(normalizedName.substring(0, macroIndex))
+            append(normalizedName.substring(macroIndex + macro.length))
+        }.replace(Regex("\\s+"), " ").trim()
+        return cleaned to category
     }
 
     private fun applyDishAutofill(dish: Dish): Dish {

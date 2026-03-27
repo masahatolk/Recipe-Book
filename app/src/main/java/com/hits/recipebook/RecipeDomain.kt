@@ -94,12 +94,24 @@ private val macroMap = mapOf(
 )
 
 fun resolveDishNameAndMacroCategory(name: String): Pair<String, DishCategory?> {
-    val words = name.trim().split(Regex("\\s+")).filter { it.isNotBlank() }.toMutableList()
-    val firstMacroIndex = words.indexOfFirst { macroMap.containsKey(it.lowercase()) }
-    if (firstMacroIndex < 0) return name.trim() to null
-    val macroCategory = macroMap[words[firstMacroIndex].lowercase()]
-    words.removeAt(firstMacroIndex)
-    return words.joinToString(" ").trim() to macroCategory
+    val normalizedName = name.trim()
+    val lower = normalizedName.lowercase()
+    val firstMacroMatch = macroMap.entries
+        .mapNotNull { entry ->
+            val index = lower.indexOf(entry.key)
+            if (index >= 0) entry to index else null
+        }
+        .minByOrNull { it.second }
+        ?: return normalizedName to null
+
+    val macro = firstMacroMatch.first.key
+    val macroCategory = firstMacroMatch.first.value
+    val macroIndex = firstMacroMatch.second
+    val cleaned = buildString {
+        append(normalizedName.substring(0, macroIndex))
+        append(normalizedName.substring(macroIndex + macro.length))
+    }.replace(Regex("\\s+"), " ").trim()
+    return cleaned to macroCategory
 }
 
 fun calculateNutrition(ingredients: List<DishIngredient>, productsById: Map<String, Product>): Nutrition {
