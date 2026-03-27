@@ -1,12 +1,13 @@
 package com.hits.recipebook
 
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.horizontalScroll
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -23,12 +24,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
@@ -48,7 +47,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -68,6 +66,9 @@ import coil.compose.AsyncImage
 import com.hits.recipebook.ui.theme.RecipeBookTheme
 import kotlinx.coroutines.launch
 import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -149,6 +150,7 @@ fun RecipeBookApp() {
     var cookingFilter by remember { mutableStateOf(setOf<CookingRequirement>()) }
     var productFlagsFilter by remember { mutableStateOf(setOf<ExtraFlag>()) }
     var productSort by remember { mutableStateOf(ProductSort.NAME) }
+    var isProductSortAscending by remember { mutableStateOf(true) }
     var dishSearch by remember { mutableStateOf("") }
     var dishCategoryFilter by remember { mutableStateOf(setOf<DishCategory>()) }
     var dishFlagsFilter by remember { mutableStateOf(setOf<ExtraFlag>()) }
@@ -167,20 +169,22 @@ fun RecipeBookApp() {
     var selectedDish by remember { mutableStateOf<Dish?>(null) }
     var detailScreen by remember { mutableStateOf<DetailScreen?>(null) }
 
+    val productComparator = when (productSort) {
+        ProductSort.NAME -> compareBy<Product> { it.name.lowercase() }
+        ProductSort.CALORIES -> compareBy { it.nutritionPer100g.calories }
+        ProductSort.PROTEINS -> compareBy { it.nutritionPer100g.proteins }
+        ProductSort.FATS -> compareBy { it.nutritionPer100g.fats }
+        ProductSort.CARBS -> compareBy { it.nutritionPer100g.carbs }
+    }.let { comparator ->
+        if (isProductSortAscending) comparator else comparator.reversed()
+    }
+
     val filteredProducts = products
         .filter { productSearch.isBlank() || it.name.contains(productSearch, ignoreCase = true) }
         .filter { productCategoryFilter.isEmpty() || productCategoryFilter.contains(it.category) }
         .filter { cookingFilter.isEmpty() || cookingFilter.contains(it.cookingRequirement) }
         .filter { it.flags.containsAll(productFlagsFilter) }
-        .sortedWith(
-            when (productSort) {
-                ProductSort.NAME -> compareBy { it.name.lowercase() }
-                ProductSort.CALORIES -> compareBy { it.nutritionPer100g.calories }
-                ProductSort.PROTEINS -> compareBy { it.nutritionPer100g.proteins }
-                ProductSort.FATS -> compareBy { it.nutritionPer100g.fats }
-                ProductSort.CARBS -> compareBy { it.nutritionPer100g.carbs }
-            }
-        )
+        .sortedWith(productComparator)
 
     val filteredDishes = dishes
         .filter { dishSearch.isBlank() || it.name.contains(dishSearch, ignoreCase = true) }
@@ -246,9 +250,15 @@ fun RecipeBookApp() {
                                     require(productForm.name.trim().length >= 2) { "Название продукта: минимум 2 символа" }
                                     require(productForm.photos.size <= 5) { "Можно указать не более 5 фото" }
                                     val nutrition = Nutrition(
-                                        calories = parseRequiredDouble(productForm.calories, "Калорийность")
+                                        calories = parseRequiredDouble(
+                                            productForm.calories,
+                                            "Калорийность"
+                                        )
                                             .also { require(it >= 0) { "Калорийность должна быть >= 0" } },
-                                        proteins = parseRequiredDouble(productForm.proteins, "Белки")
+                                        proteins = parseRequiredDouble(
+                                            productForm.proteins,
+                                            "Белки"
+                                        )
                                             .also { require(it in 0.0..100.0) { "Белки должны быть в диапазоне 0..100" } },
                                         fats = parseRequiredDouble(productForm.fats, "Жиры")
                                             .also { require(it in 0.0..100.0) { "Жиры должны быть в диапазоне 0..100" } },
@@ -314,7 +324,9 @@ fun RecipeBookApp() {
                             if (productFlagsFilter.contains(flag)) productFlagsFilter - flag else productFlagsFilter + flag
                     },
                     sort = productSort,
-                    onSortChange = { productSort = it }
+                    onSortChange = { productSort = it },
+                    isSortAscending = isProductSortAscending,
+                    onSortDirectionChange = { isProductSortAscending = it },
                 )
 
                 LazyColumn(
@@ -338,11 +350,15 @@ fun RecipeBookApp() {
                                 Text("КБЖУ/100 г: ${pretty(product.nutritionPer100g)}")
                                 Text("Флаги: ${flagsText(product.flags)}")
                                 Text("Фото: ${if (product.photos.isEmpty()) "нет" else "${product.photos.size} шт."}")
+                                Text("Создан: ${humanReadableDateTime(product.createdAt)}")
+                                Text("Изменён: ${humanReadableDateTime(product.updatedAt)}")
                                 FlowRow(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Button(onClick = { detailScreen = DetailScreen.ProductDetails(product) }) { Text("Просмотр") }
+                                    Button(onClick = {
+                                        detailScreen = DetailScreen.ProductDetails(product)
+                                    }) { Text("Просмотр") }
                                     Button(onClick = {
                                         productForm = ProductFormState(
                                             id = product.id,
@@ -429,7 +445,10 @@ fun RecipeBookApp() {
                                     val category = dishForm.category ?: macroCategory
                                     requireNotNull(category) { "Укажите категорию или добавьте макрос в названии" }
                                     val nutrition = Nutrition(
-                                        calories = parseRequiredDouble(dishForm.calories, "Калорийность")
+                                        calories = parseRequiredDouble(
+                                            dishForm.calories,
+                                            "Калорийность"
+                                        )
                                             .also { require(it >= 0) { "Калорийность должна быть >= 0" } },
                                         proteins = parseRequiredDouble(dishForm.proteins, "Белки")
                                             .also { require(it >= 0) { "Белки должны быть >= 0" } },
@@ -528,11 +547,15 @@ fun RecipeBookApp() {
                                 Text("КБЖУ/порция: ${pretty(dish.nutritionPerPortion)}")
                                 Text("Флаги: ${flagsText(dish.flags)}")
                                 Text("Фото: ${if (dish.photos.isEmpty()) "нет" else "${dish.photos.size} шт."}")
+                                Text("Создан: ${humanReadableDateTime(dish.createdAt)}")
+                                Text("Изменён: ${humanReadableDateTime(dish.updatedAt)}")
                                 FlowRow(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Button(onClick = { detailScreen = DetailScreen.DishDetails(dish) }) { Text("Просмотр") }
+                                    Button(onClick = {
+                                        detailScreen = DetailScreen.DishDetails(dish)
+                                    }) { Text("Просмотр") }
                                     Button(onClick = {
                                         dishForm = DishFormState(
                                             id = dish.id,
@@ -879,6 +902,8 @@ private fun ProductFilterBlock(
     onFlagToggle: (ExtraFlag) -> Unit,
     sort: ProductSort,
     onSortChange: (ProductSort) -> Unit,
+    isSortAscending: Boolean,
+    onSortDirectionChange: (Boolean) -> Unit,
 ) {
     var isExpanded by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -951,6 +976,11 @@ private fun ProductFilterBlock(
                             label = { Text(option.label) }
                         )
                     }
+                    ElevatedFilterChip(
+                        selected = true,
+                        onClick = { onSortDirectionChange(!isSortAscending) },
+                        label = { Text(if (isSortAscending) "↑ По возрастанию" else "↓ По убыванию") }
+                    )
                 }
                 Divider(Modifier.padding(vertical = 4.dp))
             }
@@ -1112,7 +1142,7 @@ private fun ProductDetailsScreen(product: Product, onBack: () -> Unit) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
             }
             Text("Просмотр продукта", fontWeight = FontWeight.SemiBold)
         }
@@ -1128,8 +1158,8 @@ private fun ProductDetailsScreen(product: Product, onBack: () -> Unit) {
         Text("КБЖУ/100 г: ${pretty(product.nutritionPer100g)}")
         Text("Флаги: ${flagsText(product.flags)}")
         Text("Состав: ${product.composition ?: "—"}")
-        Text("Создан: ${product.createdAt}")
-        Text("Изменён: ${product.updatedAt ?: "—"}")
+        Text("Создан: ${humanReadableDateTime(product.createdAt)}")
+        Text("Изменён: ${humanReadableDateTime(product.updatedAt)}")
     }
 }
 
@@ -1148,7 +1178,7 @@ private fun DishDetailsScreen(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
             }
             Text("Просмотр блюда", fontWeight = FontWeight.SemiBold)
         }
@@ -1167,8 +1197,8 @@ private fun DishDetailsScreen(
         dish.ingredients.forEach { ingredient ->
             Text("- ${productsById[ingredient.productId]?.name ?: "?"}: ${ingredient.grams.toOneDecimal()} г")
         }
-        Text("Создан: ${dish.createdAt}")
-        Text("Изменён: ${dish.updatedAt ?: "—"}")
+        Text("Создан: ${humanReadableDateTime(dish.createdAt)}")
+        Text("Изменён: ${humanReadableDateTime(dish.updatedAt)}")
     }
 }
 
@@ -1182,6 +1212,17 @@ private fun pretty(nutrition: Nutrition): String =
 
 private fun flagsText(flags: Set<ExtraFlag>): String =
     flags.takeIf { it.isNotEmpty() }?.joinToString { it.label } ?: "нет"
+
+private fun humanReadableDateTime(rawDateTime: String?): String {
+    if (rawDateTime.isNullOrBlank()) return "—"
+    return runCatching {
+        val instant = Instant.parse(rawDateTime)
+        val localDateTime = instant.atZone(ZoneId.systemDefault())
+        localDateTime.format(
+            DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm", Locale("ru", "RU"))
+        )
+    }.getOrElse { rawDateTime }
+}
 
 private fun Double.toOneDecimal(): String = "%.1f".format(this)
 
