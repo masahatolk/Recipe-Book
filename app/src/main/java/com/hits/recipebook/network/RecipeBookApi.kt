@@ -8,6 +8,8 @@ import com.hits.recipebook.ExtraFlag
 import com.hits.recipebook.Nutrition
 import com.hits.recipebook.Product
 import com.hits.recipebook.ProductCategory
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
@@ -84,11 +86,20 @@ data class DishCalculationResponse(
 )
 
 object RecipeBookApiFactory {
-    private const val BASE_URL = "http://10.0.2.2:8080/"
+    private const val BASE_URL = "http://10.0.2.2:18080/"
 
     val api: RecipeBookApi by lazy {
+        val logging = HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BODY
+        }
+
+        val client = OkHttpClient.Builder()
+            .addInterceptor(logging)
+            .build()
+
         Retrofit.Builder()
             .baseUrl(BASE_URL)
+            .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(RecipeBookApi::class.java)
