@@ -15,6 +15,8 @@ logback = "1.5.18"
 appcompat = "1.7.1"
 material = "1.13.0"
 coil = "2.7.0"
+retrofit = "2.11.0"
+okhttpLogging = "4.12.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -45,6 +47,9 @@ ktor-server-test-host = { group = "io.ktor", name = "ktor-server-test-host-jvm",
 logback-classic = { group = "ch.qos.logback", name = "logback-classic", version.ref = "logback" }
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
+retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
+retrofit-converter-gson = { group = "com.squareup.retrofit2", name = "converter-gson", version.ref = "retrofit" }
+okhttp-logging-interceptor = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttpLogging" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

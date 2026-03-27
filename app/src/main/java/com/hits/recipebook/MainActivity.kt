@@ -1,13 +1,11 @@
 package com.hits.recipebook
 
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -63,8 +61,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.hits.recipebook.network.DishUpsertRequest
+import com.hits.recipebook.network.ProductUpsertRequest
+import com.hits.recipebook.network.RecipeBookApiFactory
 import com.hits.recipebook.ui.theme.RecipeBookTheme
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -122,27 +124,9 @@ fun RecipeBookApp() {
     val snackBarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    val products = remember {
-        mutableStateListOf(
-            Product(
-                name = "Тофу",
-                category = ProductCategory.MEAT,
-                cookingRequirement = CookingRequirement.READY_TO_EAT,
-                flags = setOf(ExtraFlag.VEGAN, ExtraFlag.GLUTEN_FREE, ExtraFlag.SUGAR_FREE),
-                nutritionPer100g = Nutrition(120.0, 12.0, 7.0, 1.5),
-                composition = "Соевые бобы, вода",
-            ),
-            Product(
-                name = "Томат",
-                category = ProductCategory.VEGETABLES,
-                cookingRequirement = CookingRequirement.READY_TO_EAT,
-                flags = setOf(ExtraFlag.VEGAN, ExtraFlag.GLUTEN_FREE, ExtraFlag.SUGAR_FREE),
-                nutritionPer100g = Nutrition(18.0, 0.9, 0.2, 3.9),
-            )
-        )
-    }
-
+    val products = remember { mutableStateListOf<Product>() }
     val dishes = remember { mutableStateListOf<Dish>() }
+    val api = remember { RecipeBookApiFactory.api }
 
     var tab by remember { mutableIntStateOf(0) }
     var productSearch by remember { mutableStateOf("") }
@@ -190,6 +174,17 @@ fun RecipeBookApp() {
         .filter { dishSearch.isBlank() || it.name.contains(dishSearch, ignoreCase = true) }
         .filter { dishCategoryFilter.isEmpty() || dishCategoryFilter.contains(it.category) }
         .filter { it.flags.containsAll(dishFlagsFilter) }
+
+    LaunchedEffect(Unit) {
+        runCatching {
+            val loadedProducts = api.getProducts()
+            val loadedDishes = api.getDishes()
+            products.clear(); products.addAll(loadedProducts)
+            dishes.clear(); dishes.addAll(loadedDishes)
+        }.onFailure {
+            snackBarHostState.showSnackbar("Не удалось загрузить данные с сервера: ${it.message}")
+        }
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -269,9 +264,7 @@ fun RecipeBookApp() {
                                     require(nutrition.proteins + nutrition.fats + nutrition.carbs <= 100.0) {
                                         "Сумма БЖУ на 100 г не может превышать 100"
                                     }
-                                    val entity = Product(
-                                        id = productForm.id ?: java.util.UUID.randomUUID()
-                                            .toString(),
+                                    val request = ProductUpsertRequest(
                                         name = productForm.name.trim(),
                                         photos = productForm.photos,
                                         nutritionPer100g = nutrition,
@@ -279,17 +272,23 @@ fun RecipeBookApp() {
                                         category = productForm.category,
                                         cookingRequirement = productForm.cookingRequirement,
                                         flags = productForm.flags,
-                                        createdAt = products.firstOrNull { it.id == productForm.id }?.createdAt
-                                            ?: Instant.now().toString(),
-                                        updatedAt = if (productForm.id == null) null else Instant.now()
-                                            .toString(),
                                     )
-                                    val currentIndex = products.indexOfFirst { it.id == entity.id }
-                                    if (currentIndex >= 0) products[currentIndex] =
-                                        entity else products += entity
-                                    productForm = ProductFormState()
-                                    productError = null
-                                    isProductEditorVisible = false
+                                    scope.launch {
+                                        runCatching {
+                                            val saved = if (productForm.id == null) {
+                                                api.createProduct(request)
+                                            } else {
+                                                api.updateProduct(productForm.id!!, request)
+                                            }
+                                            val currentIndex = products.indexOfFirst { it.id == saved.id }
+                                            if (currentIndex >= 0) products[currentIndex] = saved else products += saved
+                                            productForm = ProductFormState()
+                                            productError = null
+                                            isProductEditorVisible = false
+                                        }.onFailure {
+                                            productError = it.message ?: "Ошибка сохранения"
+                                        }
+                                    }
                                 }.onFailure { productError = it.message ?: "Ошибка сохранения" }
                             },
                             onCancel = {
@@ -377,16 +376,18 @@ fun RecipeBookApp() {
                                         isProductEditorVisible = true
                                     }) { Text("Редактировать") }
                                     Button(onClick = {
-                                        val usedBy =
-                                            dishes.filter { d -> d.ingredients.any { it.productId == product.id } }
-                                        if (usedBy.isNotEmpty()) {
-                                            scope.launch {
-                                                snackBarHostState.showSnackbar(
-                                                    "Удаление недоступно. Используется в блюдах: ${usedBy.joinToString { it.name }}"
-                                                )
+                                        scope.launch {
+                                            runCatching {
+                                                api.deleteProduct(product.id)
+                                                products.remove(product)
+                                            }.onFailure { error ->
+                                                val message = if (error is HttpException && error.code() == 409) {
+                                                    "Удаление недоступно: продукт используется в блюдах"
+                                                } else {
+                                                    "Ошибка удаления продукта: ${error.message}"
+                                                }
+                                                snackBarHostState.showSnackbar(message)
                                             }
-                                        } else {
-                                            products.remove(product)
                                         }
                                     }) { Text("Удалить") }
                                 }
@@ -457,12 +458,11 @@ fun RecipeBookApp() {
                                         carbs = parseRequiredDouble(dishForm.carbs, "Углеводы")
                                             .also { require(it >= 0) { "Углеводы должны быть >= 0" } },
                                     )
-                                    require(nutrition.proteins + nutrition.fats + nutrition.carbs <= portion) {
-                                        "Сумма БЖУ на 100 г не может превышать 100 (для порции ${portion.toOneDecimal()} г сумма БЖУ должна быть ≤ ${portion.toOneDecimal()} г)"
+                                    require(nutrition.proteins + nutrition.fats + nutrition.carbs <= 100.0) {
+                                        "Сумма БЖУ на порцию не может превышать 100"
                                     }
                                     val allowedFlags = allowedDishFlags(ingredients, productById)
-                                    val entity = Dish(
-                                        id = dishForm.id ?: java.util.UUID.randomUUID().toString(),
+                                    val request = DishUpsertRequest(
                                         name = cleanName,
                                         photos = dishForm.photos,
                                         nutritionPerPortion = nutrition,
@@ -470,16 +470,23 @@ fun RecipeBookApp() {
                                         portionSizeGrams = portion,
                                         category = category,
                                         flags = dishForm.flags.intersect(allowedFlags),
-                                        createdAt = dishes.firstOrNull { it.id == dishForm.id }?.createdAt
-                                            ?: Instant.now().toString(),
-                                        updatedAt = if (dishForm.id == null) null else Instant.now()
-                                            .toString(),
                                     )
-                                    val index = dishes.indexOfFirst { it.id == entity.id }
-                                    if (index >= 0) dishes[index] = entity else dishes += entity
-                                    dishForm = DishFormState()
-                                    dishError = null
-                                    isDishEditorVisible = false
+                                    scope.launch {
+                                        runCatching {
+                                            val saved = if (dishForm.id == null) {
+                                                api.createDish(request)
+                                            } else {
+                                                api.updateDish(dishForm.id!!, request)
+                                            }
+                                            val index = dishes.indexOfFirst { it.id == saved.id }
+                                            if (index >= 0) dishes[index] = saved else dishes += saved
+                                            dishForm = DishFormState()
+                                            dishError = null
+                                            isDishEditorVisible = false
+                                        }.onFailure {
+                                            dishError = it.message ?: "Ошибка сохранения"
+                                        }
+                                    }
                                 }.onFailure { dishError = it.message ?: "Ошибка сохранения" }
                             },
                             onAutoFillNutrition = {
@@ -490,16 +497,22 @@ fun RecipeBookApp() {
                                         if (grams <= 0) return@mapNotNull null
                                         DishIngredient(id, grams)
                                     }
-                                val nutrition = calculateNutrition(ingredients, productById)
-                                val allowedFlags = allowedDishFlags(ingredients, productById)
-                                dishForm = dishForm.copy(
-                                    calories = nutrition.calories.toOneDecimal(),
-                                    proteins = nutrition.proteins.toOneDecimal(),
-                                    fats = nutrition.fats.toOneDecimal(),
-                                    carbs = nutrition.carbs.toOneDecimal(),
-                                    flags = dishForm.flags.intersect(allowedFlags),
-                                    isNutritionManuallyEdited = false,
-                                )
+                                scope.launch {
+                                    runCatching {
+                                        val calculation = api.calculateDish(ingredients)
+                                        val nutrition = calculation.nutrition
+                                        dishForm = dishForm.copy(
+                                            calories = nutrition.calories.toOneDecimal(),
+                                            proteins = nutrition.proteins.toOneDecimal(),
+                                            fats = nutrition.fats.toOneDecimal(),
+                                            carbs = nutrition.carbs.toOneDecimal(),
+                                            flags = dishForm.flags.intersect(calculation.availableFlags),
+                                            isNutritionManuallyEdited = false,
+                                        )
+                                    }.onFailure {
+                                        dishError = "Не удалось рассчитать КБЖУ: ${it.message}"
+                                    }
+                                }
                             },
                             onCancel = {
                                 dishForm = DishFormState()
@@ -574,7 +587,16 @@ fun RecipeBookApp() {
                                         dishError = null
                                         isDishEditorVisible = true
                                     }) { Text("Редактировать") }
-                                    Button(onClick = { dishes.remove(dish) }) { Text("Удалить") }
+                                    Button(onClick = {
+                                        scope.launch {
+                                            runCatching {
+                                                api.deleteDish(dish.id)
+                                                dishes.remove(dish)
+                                            }.onFailure {
+                                                snackBarHostState.showSnackbar("Ошибка удаления блюда: ${it.message}")
+                                            }
+                                        }
+                                    }) { Text("Удалить") }
                                 }
                             }
 
