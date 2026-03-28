@@ -8,6 +8,7 @@ import com.hits.recipebook.ExtraFlag
 import com.hits.recipebook.Nutrition
 import com.hits.recipebook.Product
 import com.hits.recipebook.ProductCategory
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -15,8 +16,10 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.PUT
+import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -58,6 +61,10 @@ interface RecipeBookApi {
 
     @POST("api/dishes/calculate")
     suspend fun calculateDish(@Body ingredients: List<DishIngredient>): DishCalculationResponse
+
+    @Multipart
+    @POST("api/photos")
+    suspend fun uploadPhoto(@Part photo: MultipartBody.Part): PhotoUploadResponse
 }
 
 data class ProductUpsertRequest(
@@ -85,8 +92,11 @@ data class DishCalculationResponse(
     val availableFlags: Set<ExtraFlag>,
 )
 
+data class PhotoUploadResponse(
+    val url: String,
+)
 object RecipeBookApiFactory {
-    private const val BASE_URL = "http://10.0.2.2:18080/"
+    const val BASE_URL = "http://10.0.2.2:18080/"
 
     val api: RecipeBookApi by lazy {
         val logging = HttpLoggingInterceptor().apply {

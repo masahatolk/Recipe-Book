@@ -19,7 +19,7 @@ dependencies {
     implementation(libs.ktor.server.call.logging)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.logback.classic)
-
+    implementation(libs.ktor.server.static.content)
     testImplementation(libs.junit)
     testImplementation(kotlin("test"))
     testImplementation(libs.ktor.server.test.host)

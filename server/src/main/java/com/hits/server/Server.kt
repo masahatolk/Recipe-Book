@@ -11,15 +11,20 @@ import com.hits.server.Product
 import com.hits.server.ProductCategory
 import com.hits.server.ProductFilter
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.PartData
+import io.ktor.http.content.forEachPart
+import io.ktor.http.content.streamProvider
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.engine.embeddedServer
+import io.ktor.server.http.content.staticFiles
 import io.ktor.server.netty.Netty
 import io.ktor.server.plugins.calllogging.CallLogging
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.receive
+import io.ktor.server.request.receiveMultipart
 import io.ktor.server.response.respond
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
@@ -28,6 +33,8 @@ import io.ktor.server.routing.put
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import kotlinx.serialization.json.Json
+import java.io.File
+import java.util.UUID
 
 fun main() {
     embeddedServer(Netty, port = 8080, host = "0.0.0.0") {
@@ -36,6 +43,7 @@ fun main() {
 }
 
 fun Application.recipeBookModule(service: RecipeService) {
+    val uploadsDir = File("server-data/uploads").apply { mkdirs() }
     install(CallLogging)
     install(ContentNegotiation) { json(Json { prettyPrint = true; ignoreUnknownKeys = true }) }
     install(StatusPages) {
@@ -54,6 +62,25 @@ fun Application.recipeBookModule(service: RecipeService) {
     }
 
     routing {
+        staticFiles("/uploads", uploadsDir)
+        post("/api/photos") {
+            val multipart = call.receiveMultipart()
+            var uploadedUrl: String? = null
+            multipart.forEachPart { part ->
+                if (part is PartData.FileItem && part.name == "photo") {
+                    val originalName = part.originalFileName.orEmpty()
+                    val extension = originalName.substringAfterLast('.', "").lowercase().takeIf { it.isNotBlank() } ?: "jpg"
+                    val fileName = "${UUID.randomUUID()}.$extension"
+                    val destination = File(uploadsDir, fileName)
+                    part.streamProvider().use { input -> destination.outputStream().use { output -> input.copyTo(output) } }
+                    uploadedUrl = "/uploads/$fileName"
+                }
+                part.dispose()
+            }
+            requireNotNull(uploadedUrl) { "Файл photo обязателен" }
+            call.respond(mapOf("url" to uploadedUrl))
+        }
+
         route("/api/products") {
             get {
                 val flags = call.request.queryParameters.getAll("flag")
