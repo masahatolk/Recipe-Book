@@ -1,5 +1,8 @@
 package com.hits.recipebook
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -57,6 +60,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -68,6 +72,8 @@ import com.hits.recipebook.ui.theme.RecipeBookTheme
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -152,6 +158,7 @@ fun RecipeBookApp() {
     var selectedProduct by remember { mutableStateOf<Product?>(null) }
     var selectedDish by remember { mutableStateOf<Dish?>(null) }
     var detailScreen by remember { mutableStateOf<DetailScreen?>(null) }
+    val isEditorVisible = isProductEditorVisible || isDishEditorVisible
 
     val productComparator = when (productSort) {
         ProductSort.NAME -> compareBy<Product> { it.name.lowercase() }
@@ -176,14 +183,23 @@ fun RecipeBookApp() {
         .filter { it.flags.containsAll(dishFlagsFilter) }
 
     LaunchedEffect(Unit) {
-        runCatching {
-            val loadedProducts = api.getProducts()
-            val loadedDishes = api.getDishes()
-            products.clear(); products.addAll(loadedProducts)
-            dishes.clear(); dishes.addAll(loadedDishes)
-        }.onFailure {
-            snackBarHostState.showSnackbar("Не удалось загрузить данные с сервера: ${it.message}")
-        }
+        runCatching { api.getProducts() }
+            .onSuccess { loadedProducts ->
+                products.clear()
+                products.addAll(loadedProducts)
+            }
+            .onFailure {
+                snackBarHostState.showSnackbar("Не удалось загрузить продукты: ${it.message}")
+            }
+
+        runCatching { api.getDishes() }
+            .onSuccess { loadedDishes ->
+                dishes.clear()
+                dishes.addAll(loadedDishes)
+            }
+            .onFailure {
+                snackBarHostState.showSnackbar("Не удалось загрузить блюда: ${it.message}")
+            }
     }
 
     Scaffold(
@@ -196,9 +212,11 @@ fun RecipeBookApp() {
                 .padding(12.dp)
                 .fillMaxSize()
         ) {
-            TabRow(tab) {
-                Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Продукты") })
-                Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("Блюда") })
+            if (!isEditorVisible) {
+                TabRow(tab) {
+                    Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Продукты") })
+                    Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("Блюда") })
+                }
             }
             if (detailScreen != null) {
                 when (val currentDetail = detailScreen) {
@@ -219,7 +237,7 @@ fun RecipeBookApp() {
                 if (!isProductEditorVisible) {
                     Row(
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .fillMaxSize()
                             .padding(vertical = 8.dp),
                         horizontalArrangement = Arrangement.End
                     ) {
@@ -280,8 +298,10 @@ fun RecipeBookApp() {
                                             } else {
                                                 api.updateProduct(productForm.id!!, request)
                                             }
-                                            val currentIndex = products.indexOfFirst { it.id == saved.id }
-                                            if (currentIndex >= 0) products[currentIndex] = saved else products += saved
+                                            val currentIndex =
+                                                products.indexOfFirst { it.id == saved.id }
+                                            if (currentIndex >= 0) products[currentIndex] =
+                                                saved else products += saved
                                             productForm = ProductFormState()
                                             productError = null
                                             isProductEditorVisible = false
@@ -300,109 +320,112 @@ fun RecipeBookApp() {
                     }
                 }
 
-                ProductFilterBlock(
-                    search = productSearch,
-                    onSearchChange = { productSearch = it },
-                    categoryFilter = productCategoryFilter,
-                    onCategoryFilterToggle = { category ->
-                        productCategoryFilter =
-                            if (productCategoryFilter.contains(category)) productCategoryFilter - category
-                            else productCategoryFilter + category
-                    },
-                    onCategoryFilterReset = { productCategoryFilter = emptySet() },
-                    cookingFilter = cookingFilter,
-                    onCookingFilterToggle = { cooking ->
-                        cookingFilter =
-                            if (cookingFilter.contains(cooking)) cookingFilter - cooking
-                            else cookingFilter + cooking
-                    },
-                    onCookingFilterReset = { cookingFilter = emptySet() },
-                    flagsFilter = productFlagsFilter,
-                    onFlagToggle = { flag ->
-                        productFlagsFilter =
-                            if (productFlagsFilter.contains(flag)) productFlagsFilter - flag else productFlagsFilter + flag
-                    },
-                    sort = productSort,
-                    onSortChange = { productSort = it },
-                    isSortAscending = isProductSortAscending,
-                    onSortDirectionChange = { isProductSortAscending = it },
-                )
+                if (!isProductEditorVisible) {
+                    ProductFilterBlock(
+                        search = productSearch,
+                        onSearchChange = { productSearch = it },
+                        categoryFilter = productCategoryFilter,
+                        onCategoryFilterToggle = { category ->
+                            productCategoryFilter =
+                                if (productCategoryFilter.contains(category)) productCategoryFilter - category
+                                else productCategoryFilter + category
+                        },
+                        onCategoryFilterReset = { productCategoryFilter = emptySet() },
+                        cookingFilter = cookingFilter,
+                        onCookingFilterToggle = { cooking ->
+                            cookingFilter =
+                                if (cookingFilter.contains(cooking)) cookingFilter - cooking
+                                else cookingFilter + cooking
+                        },
+                        onCookingFilterReset = { cookingFilter = emptySet() },
+                        flagsFilter = productFlagsFilter,
+                        onFlagToggle = { flag ->
+                            productFlagsFilter =
+                                if (productFlagsFilter.contains(flag)) productFlagsFilter - flag else productFlagsFilter + flag
+                        },
+                        sort = productSort,
+                        onSortChange = { productSort = it },
+                        isSortAscending = isProductSortAscending,
+                        onSortDirectionChange = { isProductSortAscending = it },
+                    )
 
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    items(filteredProducts, key = { it.id }) { product ->
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            Column(
-                                Modifier.padding(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(3.dp)
-                            ) {
-                                Text(product.name, fontWeight = FontWeight.Bold)
-                                PhotoCarousel(
-                                    photos = product.photos,
-                                    title = "Фото продукта ${product.name}",
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                                Text("Категория: ${product.category.label}")
-                                Text("Готовка: ${product.cookingRequirement.label}")
-                                Text("КБЖУ/100 г: ${pretty(product.nutritionPer100g)}")
-                                Text("Флаги: ${flagsText(product.flags)}")
-                                Text("Фото: ${if (product.photos.isEmpty()) "нет" else "${product.photos.size} шт."}")
-                                Text("Создан: ${humanReadableDateTime(product.createdAt)}")
-                                Text("Изменён: ${humanReadableDateTime(product.updatedAt)}")
-                                FlowRow(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        items(filteredProducts, key = { it.id }) { product ->
+                            Card(modifier = Modifier.fillMaxWidth()) {
+                                Column(
+                                    Modifier.padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(3.dp)
                                 ) {
-                                    Button(onClick = {
-                                        detailScreen = DetailScreen.ProductDetails(product)
-                                    }) { Text("Просмотр") }
-                                    Button(onClick = {
-                                        productForm = ProductFormState(
-                                            id = product.id,
-                                            name = product.name,
-                                            photos = product.photos,
-                                            calories = product.nutritionPer100g.calories.toString(),
-                                            proteins = product.nutritionPer100g.proteins.toString(),
-                                            fats = product.nutritionPer100g.fats.toString(),
-                                            carbs = product.nutritionPer100g.carbs.toString(),
-                                            composition = product.composition.orEmpty(),
-                                            category = product.category,
-                                            cookingRequirement = product.cookingRequirement,
-                                            flags = product.flags,
-                                        )
-                                        productError = null
-                                        isProductEditorVisible = true
-                                    }) { Text("Редактировать") }
-                                    Button(onClick = {
-                                        scope.launch {
-                                            runCatching {
-                                                api.deleteProduct(product.id)
-                                                products.remove(product)
-                                            }.onFailure { error ->
-                                                val message = if (error is HttpException && error.code() == 409) {
-                                                    "Удаление недоступно: продукт используется в блюдах"
-                                                } else {
-                                                    "Ошибка удаления продукта: ${error.message}"
+                                    Text(product.name, fontWeight = FontWeight.Bold)
+                                    PhotoCarousel(
+                                        photos = product.photos,
+                                        title = "Фото продукта ${product.name}",
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                    Text("Категория: ${product.category.label}")
+                                    Text("Готовка: ${product.cookingRequirement.label}")
+                                    Text("КБЖУ/100 г: ${pretty(product.nutritionPer100g)}")
+                                    Text("Флаги: ${flagsText(product.flags)}")
+                                    Text("Фото: ${if (product.photos.isEmpty()) "нет" else "${product.photos.size} шт."}")
+                                    Text("Создан: ${humanReadableDateTime(product.createdAt)}")
+                                    Text("Изменён: ${humanReadableDateTime(product.updatedAt)}")
+                                    FlowRow(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Button(onClick = {
+                                            detailScreen = DetailScreen.ProductDetails(product)
+                                        }) { Text("Просмотр") }
+                                        Button(onClick = {
+                                            productForm = ProductFormState(
+                                                id = product.id,
+                                                name = product.name,
+                                                photos = product.photos,
+                                                calories = product.nutritionPer100g.calories.toString(),
+                                                proteins = product.nutritionPer100g.proteins.toString(),
+                                                fats = product.nutritionPer100g.fats.toString(),
+                                                carbs = product.nutritionPer100g.carbs.toString(),
+                                                composition = product.composition.orEmpty(),
+                                                category = product.category,
+                                                cookingRequirement = product.cookingRequirement,
+                                                flags = product.flags,
+                                            )
+                                            productError = null
+                                            isProductEditorVisible = true
+                                        }) { Text("Редактировать") }
+                                        Button(onClick = {
+                                            scope.launch {
+                                                runCatching {
+                                                    api.deleteProduct(product.id)
+                                                    products.remove(product)
+                                                }.onFailure { error ->
+                                                    val message =
+                                                        if (error is HttpException && error.code() == 409) {
+                                                            "Удаление недоступно: продукт используется в блюдах"
+                                                        } else {
+                                                            "Ошибка удаления продукта: ${error.message}"
+                                                        }
+                                                    snackBarHostState.showSnackbar(message)
                                                 }
-                                                snackBarHostState.showSnackbar(message)
                                             }
-                                        }
-                                    }) { Text("Удалить") }
+                                        }) { Text("Удалить") }
+                                    }
                                 }
                             }
                         }
-                    }
-                    if (filteredProducts.isEmpty()) {
-                        item { Text("Продукты не найдены", modifier = Modifier.padding(8.dp)) }
+                        if (filteredProducts.isEmpty()) {
+                            item { Text("Продукты не найдены", modifier = Modifier.padding(8.dp)) }
+                        }
                     }
                 }
             } else {
                 if (!isDishEditorVisible) {
                     Row(
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .fillMaxSize()
                             .padding(vertical = 8.dp),
                         horizontalArrangement = Arrangement.End
                     ) {
@@ -479,7 +502,8 @@ fun RecipeBookApp() {
                                                 api.updateDish(dishForm.id!!, request)
                                             }
                                             val index = dishes.indexOfFirst { it.id == saved.id }
-                                            if (index >= 0) dishes[index] = saved else dishes += saved
+                                            if (index >= 0) dishes[index] =
+                                                saved else dishes += saved
                                             dishForm = DishFormState()
                                             dishError = null
                                             isDishEditorVisible = false
@@ -523,87 +547,89 @@ fun RecipeBookApp() {
                     }
                 }
 
-                DishFilterBlock(
-                    search = dishSearch,
-                    onSearchChange = { dishSearch = it },
-                    categoryFilter = dishCategoryFilter,
-                    onCategoryFilterToggle = { category ->
-                        dishCategoryFilter =
-                            if (dishCategoryFilter.contains(category)) dishCategoryFilter - category
-                            else dishCategoryFilter + category
-                    },
-                    onCategoryFilterReset = { dishCategoryFilter = emptySet() },
-                    flagsFilter = dishFlagsFilter,
-                    onFlagToggle = { flag ->
-                        dishFlagsFilter =
-                            if (dishFlagsFilter.contains(flag)) dishFlagsFilter - flag else dishFlagsFilter + flag
-                    }
-                )
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    items(filteredDishes, key = { it.id }) { dish ->
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            Column(
-                                Modifier.padding(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(3.dp)
-                            ) {
-                                Text(dish.name, fontWeight = FontWeight.Bold)
-                                PhotoCarousel(
-                                    photos = dish.photos,
-                                    title = "Фото блюда ${dish.name}",
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                                Text("Категория: ${dish.category.label}")
-                                Text("Размер порции: ${dish.portionSizeGrams} г")
-                                Text("КБЖУ/порция: ${pretty(dish.nutritionPerPortion)}")
-                                Text("Флаги: ${flagsText(dish.flags)}")
-                                Text("Фото: ${if (dish.photos.isEmpty()) "нет" else "${dish.photos.size} шт."}")
-                                Text("Создан: ${humanReadableDateTime(dish.createdAt)}")
-                                Text("Изменён: ${humanReadableDateTime(dish.updatedAt)}")
-                                FlowRow(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                if (!isDishEditorVisible) {
+                    DishFilterBlock(
+                        search = dishSearch,
+                        onSearchChange = { dishSearch = it },
+                        categoryFilter = dishCategoryFilter,
+                        onCategoryFilterToggle = { category ->
+                            dishCategoryFilter =
+                                if (dishCategoryFilter.contains(category)) dishCategoryFilter - category
+                                else dishCategoryFilter + category
+                        },
+                        onCategoryFilterReset = { dishCategoryFilter = emptySet() },
+                        flagsFilter = dishFlagsFilter,
+                        onFlagToggle = { flag ->
+                            dishFlagsFilter =
+                                if (dishFlagsFilter.contains(flag)) dishFlagsFilter - flag else dishFlagsFilter + flag
+                        }
+                    )
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        items(filteredDishes, key = { it.id }) { dish ->
+                            Card(modifier = Modifier.fillMaxWidth()) {
+                                Column(
+                                    Modifier.padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(3.dp)
                                 ) {
-                                    Button(onClick = {
-                                        detailScreen = DetailScreen.DishDetails(dish)
-                                    }) { Text("Просмотр") }
-                                    Button(onClick = {
-                                        dishForm = DishFormState(
-                                            id = dish.id,
-                                            name = dish.name,
-                                            photos = dish.photos,
-                                            calories = dish.nutritionPerPortion.calories.toString(),
-                                            proteins = dish.nutritionPerPortion.proteins.toString(),
-                                            fats = dish.nutritionPerPortion.fats.toString(),
-                                            carbs = dish.nutritionPerPortion.carbs.toString(),
-                                            portionSize = dish.portionSizeGrams.toString(),
-                                            category = dish.category,
-                                            flags = dish.flags,
-                                            ingredientGrams = dish.ingredients.associate { it.productId to it.grams.toString() },
-                                            isNutritionManuallyEdited = true,
-                                        )
-                                        dishError = null
-                                        isDishEditorVisible = true
-                                    }) { Text("Редактировать") }
-                                    Button(onClick = {
-                                        scope.launch {
-                                            runCatching {
-                                                api.deleteDish(dish.id)
-                                                dishes.remove(dish)
-                                            }.onFailure {
-                                                snackBarHostState.showSnackbar("Ошибка удаления блюда: ${it.message}")
+                                    Text(dish.name, fontWeight = FontWeight.Bold)
+                                    PhotoCarousel(
+                                        photos = dish.photos,
+                                        title = "Фото блюда ${dish.name}",
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                    Text("Категория: ${dish.category.label}")
+                                    Text("Размер порции: ${dish.portionSizeGrams} г")
+                                    Text("КБЖУ/порция: ${pretty(dish.nutritionPerPortion)}")
+                                    Text("Флаги: ${flagsText(dish.flags)}")
+                                    Text("Фото: ${if (dish.photos.isEmpty()) "нет" else "${dish.photos.size} шт."}")
+                                    Text("Создан: ${humanReadableDateTime(dish.createdAt)}")
+                                    Text("Изменён: ${humanReadableDateTime(dish.updatedAt)}")
+                                    FlowRow(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Button(onClick = {
+                                            detailScreen = DetailScreen.DishDetails(dish)
+                                        }) { Text("Просмотр") }
+                                        Button(onClick = {
+                                            dishForm = DishFormState(
+                                                id = dish.id,
+                                                name = dish.name,
+                                                photos = dish.photos,
+                                                calories = dish.nutritionPerPortion.calories.toString(),
+                                                proteins = dish.nutritionPerPortion.proteins.toString(),
+                                                fats = dish.nutritionPerPortion.fats.toString(),
+                                                carbs = dish.nutritionPerPortion.carbs.toString(),
+                                                portionSize = dish.portionSizeGrams.toString(),
+                                                category = dish.category,
+                                                flags = dish.flags,
+                                                ingredientGrams = dish.ingredients.associate { it.productId to it.grams.toString() },
+                                                isNutritionManuallyEdited = true,
+                                            )
+                                            dishError = null
+                                            isDishEditorVisible = true
+                                        }) { Text("Редактировать") }
+                                        Button(onClick = {
+                                            scope.launch {
+                                                runCatching {
+                                                    api.deleteDish(dish.id)
+                                                    dishes.remove(dish)
+                                                }.onFailure {
+                                                    snackBarHostState.showSnackbar("Ошибка удаления блюда: ${it.message}")
+                                                }
                                             }
-                                        }
-                                    }) { Text("Удалить") }
+                                        }) { Text("Удалить") }
+                                    }
                                 }
                             }
+                        }
+                        if (filteredDishes.isEmpty()) {
+                            item { Text("Блюда не найдены", modifier = Modifier.padding(8.dp)) }
 
                         }
-                    }
-                    if (filteredDishes.isEmpty()) {
-                        item { Text("Блюда не найдены", modifier = Modifier.padding(8.dp)) }
                     }
                 }
             }
@@ -638,9 +664,11 @@ private fun ProductEditor(
     onSave: () -> Unit,
     onCancel: () -> Unit,
 ) {
+    val context = LocalContext.current
     val launcher =
-        rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri == null || form.photos.size >= 5) return@rememberLauncherForActivityResult
+            persistUriPermission(context, uri)
             onChange(form.copy(photos = form.photos + uri.toString()))
         }
 
@@ -665,7 +693,7 @@ private fun ProductEditor(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Button(onClick = { launcher.launch("image/*") }) {
+            Button(onClick = { launcher.launch(arrayOf("image/*")) }) {
                 Text(
                     "Добавить фото"
                 )
@@ -673,6 +701,13 @@ private fun ProductEditor(
             Text("Выбрано: ${form.photos.size}/5")
         }
         if (form.photos.isNotEmpty()) {
+            PhotoCarousel(
+                photos = form.photos,
+                title = "Предпросмотр фото продукта",
+                modifier = Modifier.fillMaxWidth(),
+                imageHeight = 220,
+                contentScale = ContentScale.Fit,
+            )
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -737,6 +772,7 @@ private fun DishEditor(
     onAutoFillNutrition: () -> Unit,
     onCancel: () -> Unit,
 ) {
+    val context = LocalContext.current
     val productById = products.associateBy { it.id }
     val ingredients = form.ingredientGrams.mapNotNull { (id, gramsText) ->
         val grams = gramsText.toDoubleOrNull() ?: return@mapNotNull null
@@ -746,8 +782,9 @@ private fun DishEditor(
     val allowedFlags = allowedDishFlags(ingredients, productById)
 
     val launcher =
-        rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri == null || form.photos.size >= 5) return@rememberLauncherForActivityResult
+            persistUriPermission(context, uri)
             onChange(form.copy(photos = form.photos + uri.toString()))
         }
 
@@ -778,7 +815,7 @@ private fun DishEditor(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Button(onClick = { launcher.launch("image/*") }) {
+            Button(onClick = { launcher.launch(arrayOf("image/*")) }) {
                 Text(
                     "Добавить фото"
                 )
@@ -786,6 +823,13 @@ private fun DishEditor(
             Text("Выбрано: ${form.photos.size}/5")
         }
         if (form.photos.isNotEmpty()) {
+            PhotoCarousel(
+                photos = form.photos,
+                title = "Предпросмотр фото блюда",
+                modifier = Modifier.fillMaxWidth(),
+                imageHeight = 220,
+                contentScale = ContentScale.Fit,
+            )
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -1132,7 +1176,7 @@ private fun PhotoCarousel(
     var index by remember(photos) { mutableIntStateOf(0) }
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         AsyncImage(
-            model = photos[index],
+            model = normalizePhotoModel(photos[index]),
             contentDescription = "$title ${index + 1}",
             modifier = Modifier
                 .fillMaxWidth()
@@ -1151,6 +1195,29 @@ private fun PhotoCarousel(
             }
         }
     }
+}
+
+private fun persistUriPermission(context: Context, uri: Uri) {
+    runCatching {
+        context.contentResolver.takePersistableUriPermission(
+            uri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION
+        )
+    }
+}
+
+private fun normalizePhotoModel(rawPhotoPath: String): String {
+    val trimmed = rawPhotoPath.trim()
+    if (trimmed.startsWith("http://")
+        || trimmed.startsWith("https://")
+        || trimmed.startsWith("content://")
+        || trimmed.startsWith("file://")
+        || trimmed.startsWith("android.resource://")
+        || trimmed.startsWith("data:image/")
+    ) {
+        return trimmed
+    }
+    return "file://$trimmed"
 }
 
 @Composable
@@ -1237,13 +1304,15 @@ private fun flagsText(flags: Set<ExtraFlag>): String =
 
 private fun humanReadableDateTime(rawDateTime: String?): String {
     if (rawDateTime.isNullOrBlank()) return "—"
+    val formatter = DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm", Locale("ru", "RU"))
     return runCatching {
-        val instant = Instant.parse(rawDateTime)
-        val localDateTime = instant.atZone(ZoneId.systemDefault())
-        localDateTime.format(
-            DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm", Locale("ru", "RU"))
-        )
-    }.getOrElse { rawDateTime }
+        Instant.parse(rawDateTime).atZone(ZoneId.systemDefault()).format(formatter)
+    }.recoverCatching {
+        OffsetDateTime.parse(rawDateTime).atZoneSameInstant(ZoneId.systemDefault())
+            .format(formatter)
+    }.recoverCatching {
+        LocalDateTime.parse(rawDateTime).atZone(ZoneId.systemDefault()).format(formatter)
+    }.getOrElse { "Некорректная дата" }
 }
 
 private fun Double.toOneDecimal(): String = "%.1f".format(this)
