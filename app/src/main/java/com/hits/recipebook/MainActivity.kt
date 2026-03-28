@@ -72,9 +72,11 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.HttpException
+import java.io.ByteArrayOutputStream
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Base64
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {
@@ -1290,14 +1292,46 @@ private suspend fun uploadImage(
     val uri = android.net.Uri.parse(uriString)
     val bytes = requireNotNull(contentResolver.openInputStream(uri)) { "Не удалось открыть изображение" }.use { it.readBytes() }
     val fileName = originalName?.takeIf { it.isNotBlank() } ?: "photo.jpg"
-    val requestBody = bytes.toRequestBody("image/*".toMediaType())
-    val part = MultipartBody.Part.createFormData("photo", fileName, requestBody)
-    val uploadedUrl = api.uploadPhoto(part).url
-    return if (uploadedUrl.startsWith("http://") || uploadedUrl.startsWith("https://")) {
-        uploadedUrl
-    } else {
-        "${RecipeBookApiFactory.BASE_URL.trimEnd('/')}/${uploadedUrl.trimStart('/')}"
+    return runCatching {
+        val requestBody = bytes.toRequestBody("image/*".toMediaType())
+        val part = MultipartBody.Part.createFormData("photo", fileName, requestBody)
+        val uploadedUrl = api.uploadPhoto(part).url
+        if (uploadedUrl.startsWith("http://") || uploadedUrl.startsWith("https://")) {
+            uploadedUrl
+        } else {
+            "${RecipeBookApiFactory.BASE_URL.trimEnd('/')}/${uploadedUrl.trimStart('/')}"
+        }
+    }.getOrElse {
+        encodePhotoAsDataUrl(contentResolver, uri)
     }
+}
+
+private fun encodePhotoAsDataUrl(
+    contentResolver: android.content.ContentResolver,
+    uri: android.net.Uri,
+): String {
+    val options = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    requireNotNull(contentResolver.openInputStream(uri)) { "Не удалось открыть изображение" }.use { input ->
+        android.graphics.BitmapFactory.decodeStream(input, null, options)
+    }
+
+    val maxDimension = 1280
+    var inSampleSize = 1
+    while (options.outWidth / inSampleSize > maxDimension || options.outHeight / inSampleSize > maxDimension) {
+        inSampleSize *= 2
+    }
+
+    val decodeOptions = android.graphics.BitmapFactory.Options().apply { this.inSampleSize = inSampleSize }
+    val bitmap = requireNotNull(contentResolver.openInputStream(uri)) { "Не удалось открыть изображение" }.use { input ->
+        android.graphics.BitmapFactory.decodeStream(input, null, decodeOptions)
+    } ?: error("Не удалось декодировать изображение")
+
+    val output = ByteArrayOutputStream()
+    bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, output)
+    bitmap.recycle()
+
+    val base64 = Base64.getEncoder().encodeToString(output.toByteArray())
+    return "data:image/jpeg;base64,$base64"
 }
 
 private fun Double.toOneDecimal(): String = "%.1f".format(this)
