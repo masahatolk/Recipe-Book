@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -56,6 +57,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -1176,15 +1178,27 @@ private fun PhotoCarousel(
 ) {
     if (photos.isEmpty()) return
     var index by remember(photos) { mutableIntStateOf(0) }
+    val currentPhoto = photos[index]
+    val decodedBitmap = remember(currentPhoto) { decodeDataImageToBitmapOrNull(currentPhoto) }
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        AsyncImage(
-            model = photos[index],
-            contentDescription = "$title ${index + 1}",
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(if (imageHeight != null) Modifier.height(imageHeight.dp) else Modifier),
-            contentScale = contentScale,
-        )
+        val imageModifier = Modifier
+            .fillMaxWidth()
+            .then(if (imageHeight != null) Modifier.height(imageHeight.dp) else Modifier)
+        if (decodedBitmap != null) {
+            Image(
+                bitmap = decodedBitmap.asImageBitmap(),
+                contentDescription = "$title ${index + 1}",
+                modifier = imageModifier,
+                contentScale = contentScale,
+            )
+        } else {
+            AsyncImage(
+                model = currentPhoto,
+                contentDescription = "$title ${index + 1}",
+                modifier = imageModifier,
+                contentScale = contentScale,
+            )
+        }
         if (photos.size > 1) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { index = if (index == 0) photos.lastIndex else index - 1 }) {
@@ -1367,6 +1381,17 @@ private fun normalizePhotoUrl(url: String): String {
     return "${RecipeBookApiFactory.BASE_URL.trimEnd('/')}/${url.trimStart('/')}"
 }
 
+private fun decodeDataImageToBitmapOrNull(photo: String): android.graphics.Bitmap? {
+    if (!photo.startsWith("data:image", ignoreCase = true)) return null
+    val delimiter = ";base64,"
+    val base64Start = photo.indexOf(delimiter, ignoreCase = true)
+    if (base64Start == -1) return null
+
+    val payload = photo.substring(base64Start + delimiter.length)
+    val sanitizedPayload = payload.filterNot { it == '\n' || it == '\r' || it == ' ' || it == '\t' }
+    val bytes = runCatching { Base64.getDecoder().decode(sanitizedPayload) }.getOrNull() ?: return null
+    return android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+}
 
 @Preview(showBackground = true)
 @Composable
