@@ -163,13 +163,19 @@ class RecipeService(private val repository: RecipeRepository) {
     }
 
     private fun applyDishAutofill(dish: Dish): Dish {
-        val (titleWithoutMacro, macroCategory) = resolveMacroCategory(dish.name)
+        val shouldUseMacroAutofill = dish.category !in DishCategory.entries
+        val (titleWithoutMacro, macroCategory) = if (shouldUseMacroAutofill) {
+            resolveMacroCategory(dish.name)
+        } else {
+            dish.name to null
+        }
         val allowedFlags = availableFlags(dish.ingredients)
         return dish.copy(
             name = titleWithoutMacro,
             flags = dish.flags.intersect(allowedFlags),
-            category = dish.category.takeIf { it in DishCategory.entries } ?: macroCategory
-            ?: DishCategory.SNACK,
+            category = dish.category.takeIf { it in DishCategory.entries }
+                ?: macroCategory
+                ?: DishCategory.SNACK,
         )
     }
 

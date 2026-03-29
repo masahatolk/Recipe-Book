@@ -81,6 +81,7 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import java.util.Base64
@@ -1352,6 +1353,7 @@ private fun humanReadableDateTime(rawDateTime: String?): String {
     val zonedDateTime = parseToInstantOrNull(rawDateTime)
         ?.atZone(TOMSK_ZONE_ID)
         ?.toLocalDateTime()
+        ?: parseNaiveUtcToTomskLocalDateTimeOrNull(rawDateTime)
         ?: parseToLocalDateTimeOrNull(rawDateTime)
         ?: return rawDateTime.substringBefore("T").takeIf { it.isNotBlank() } ?: rawDateTime
 
@@ -1381,6 +1383,16 @@ private fun parseToLocalDateTimeOrNull(value: String): LocalDateTime? {
         }
     }
     return null
+}
+
+private fun parseNaiveUtcToTomskLocalDateTimeOrNull(value: String): LocalDateTime? {
+    val hasExplicitTimezone =
+        value.endsWith("Z", ignoreCase = true) ||
+                Regex("[+-]\\d{2}:\\d{2}$").containsMatchIn(value)
+    if (hasExplicitTimezone) return null
+
+    val localDateTime = parseToLocalDateTimeOrNull(value) ?: return null
+    return localDateTime.atOffset(ZoneOffset.UTC).atZoneSameInstant(TOMSK_ZONE_ID).toLocalDateTime()
 }
 
 private suspend fun uploadImage(
