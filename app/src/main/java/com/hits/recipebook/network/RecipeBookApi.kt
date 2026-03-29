@@ -1,5 +1,6 @@
 package com.hits.recipebook.network
 
+import android.os.Build
 import com.hits.recipebook.CookingRequirement
 import com.hits.recipebook.Dish
 import com.hits.recipebook.DishCategory
@@ -96,7 +97,32 @@ data class PhotoUploadResponse(
     val url: String,
 )
 object RecipeBookApiFactory {
-    const val BASE_URL = "http://10.0.2.2:18080/"
+    private const val EMULATOR_HOST = "10.0.2.2"
+    private const val DEVICE_HOST = "127.0.0.1"
+    private const val API_PORT = 18080
+
+    private fun isRunningOnEmulator(): Boolean {
+        return Build.FINGERPRINT.startsWith("generic") ||
+                Build.FINGERPRINT.startsWith("unknown") ||
+                Build.MODEL.contains("google_sdk") ||
+                Build.MODEL.contains("Emulator") ||
+                Build.MODEL.contains("Android SDK built for x86") ||
+                Build.MANUFACTURER.contains("Genymotion") ||
+                (Build.BRAND.startsWith("generic") && Build.DEVICE.startsWith("generic")) ||
+                "google_sdk" == Build.PRODUCT
+    }
+
+    /**
+     * Для физического устройства пробрасывайте порт:
+     * adb reverse tcp:18080 tcp:18080
+     *
+     * Если backend запущен в Docker c пробросом "18080:8080", то на хосте
+     * доступен именно 18080, поэтому в adb reverse справа тоже 18080.
+     */
+    val BASE_URL: String by lazy {
+        val host = if (isRunningOnEmulator()) EMULATOR_HOST else DEVICE_HOST
+        "http://$host:$API_PORT/"
+    }
 
     val api: RecipeBookApi by lazy {
         val logging = HttpLoggingInterceptor().apply {
