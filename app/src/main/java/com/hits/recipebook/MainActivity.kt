@@ -86,6 +86,8 @@ import java.time.format.DateTimeParseException
 import java.util.Base64
 import java.util.Locale
 
+private val TOMSK_ZONE_ID: ZoneId = ZoneId.of("Asia/Tomsk")
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -215,13 +217,14 @@ fun RecipeBookApp() {
     ) { padding ->
         val isEditorVisible =
             (tab == 0 && isProductEditorVisible) || (tab == 1 && isDishEditorVisible)
+        val isNavigationVisible = !isEditorVisible && detailScreen == null
         Column(
             modifier = Modifier
                 .padding(padding)
                 .padding(12.dp)
                 .fillMaxSize()
         ) {
-            if (!isEditorVisible) {
+            if (isNavigationVisible) {
                 TabRow(tab) {
                     Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Продукты") })
                     Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("Блюда") })
@@ -495,11 +498,19 @@ fun RecipeBookApp() {
                                         dishForm.portionSize,
                                         "Размер порции"
                                     ).also { require(it > 0) { "Размер порции должен быть больше 0" } }
-                                    val (cleanName, macroCategory) = resolveDishNameAndMacroCategory(
-                                        dishForm.name
-                                    )
-                                    val category = dishForm.category ?: macroCategory
-                                    requireNotNull(category) { "Укажите категорию или добавьте макрос в названии" }
+                                    val nameForSaving: String
+                                    val category: DishCategory
+                                    if (dishForm.category != null) {
+                                        nameForSaving = dishForm.name.trim()
+                                        category = dishForm.category!!
+                                    } else {
+                                        val (resolvedName, macroCategory) =
+                                            resolveDishNameAndMacroCategory(dishForm.name)
+                                        nameForSaving = resolvedName
+                                        category = requireNotNull(macroCategory) {
+                                            "Укажите категорию или добавьте макрос в названии"
+                                        }
+                                    }
                                     val nutrition = Nutrition(
                                         calories = parseRequiredDouble(
                                             dishForm.calories,
@@ -518,7 +529,7 @@ fun RecipeBookApp() {
                                     }
                                     val allowedFlags = allowedDishFlags(ingredients, productById)
                                     val request = DishUpsertRequest(
-                                        name = cleanName,
+                                        name = nameForSaving,
                                         photos = dishForm.photos,
                                         nutritionPerPortion = nutrition,
                                         ingredients = ingredients,
@@ -1339,7 +1350,7 @@ private fun humanReadableDateTime(rawDateTime: String?): String {
     val formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm", Locale("ru", "RU"))
 
     val zonedDateTime = parseToInstantOrNull(rawDateTime)
-        ?.atZone(ZoneId.systemDefault())
+        ?.atZone(TOMSK_ZONE_ID)
         ?.toLocalDateTime()
         ?: parseToLocalDateTimeOrNull(rawDateTime)
         ?: return rawDateTime.substringBefore("T").takeIf { it.isNotBlank() } ?: rawDateTime

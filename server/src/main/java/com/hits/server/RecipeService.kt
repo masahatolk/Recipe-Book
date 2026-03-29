@@ -8,25 +8,37 @@ import com.hits.server.ExtraFlag
 import com.hits.server.Nutrition
 import com.hits.server.Product
 import com.hits.server.ProductFilter
-import java.time.Instant
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 class RecipeService(private val repository: RecipeRepository) {
+    private val tomskZoneId = ZoneId.of("Asia/Tomsk")
+
+    private fun nowTomsk(): String =
+        OffsetDateTime.now(tomskZoneId).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
 
     fun listProducts(filter: ProductFilter): List<Product> {
         return repository.products()
             .filter { filter.category == null || it.category == filter.category }
             .filter { filter.cookingRequirement == null || it.cookingRequirement == filter.cookingRequirement }
             .filter { it.flags.containsAll(filter.flags) }
-            .filter { filter.query.isNullOrBlank() || it.name.contains(filter.query, ignoreCase = true) }
+            .filter {
+                filter.query.isNullOrBlank() || it.name.contains(
+                    filter.query,
+                    ignoreCase = true
+                )
+            }
             .sortedWith(productComparator(filter.sortBy))
     }
 
     fun createProduct(product: Product): Product {
         validateProduct(product)
         val items = repository.products()
-        items += product
+        val created = product.copy(createdAt = nowTomsk(), updatedAt = null)
+        items += created
         repository.saveProducts(items)
-        return product
+        return created
     }
 
     fun updateProduct(id: String, product: Product): Product {
@@ -34,14 +46,16 @@ class RecipeService(private val repository: RecipeRepository) {
         val items = repository.products()
         val index = items.indexOfFirst { it.id == id }
         require(index >= 0) { "Product not found" }
-        val updated = product.copy(id = id, createdAt = items[index].createdAt, updatedAt = Instant.now().toString())
+        val updated =
+            product.copy(id = id, createdAt = items[index].createdAt, updatedAt = nowTomsk())
         items[index] = updated
         repository.saveProducts(items)
         return updated
     }
 
     fun deleteProduct(id: String) {
-        val dishesWithProduct = repository.dishes().filter { d -> d.ingredients.any { it.productId == id } }
+        val dishesWithProduct =
+            repository.dishes().filter { d -> d.ingredients.any { it.productId == id } }
         require(dishesWithProduct.isEmpty()) {
             throw ProductDeletionBlockedException(dishesWithProduct.map { it.name })
         }
@@ -55,12 +69,17 @@ class RecipeService(private val repository: RecipeRepository) {
         return repository.dishes()
             .filter { filter.category == null || it.category == filter.category }
             .filter { it.flags.containsAll(filter.flags) }
-            .filter { filter.query.isNullOrBlank() || it.name.contains(filter.query, ignoreCase = true) }
+            .filter {
+                filter.query.isNullOrBlank() || it.name.contains(
+                    filter.query,
+                    ignoreCase = true
+                )
+            }
     }
 
     fun createDish(dish: Dish): Dish {
         validateDish(dish)
-        val normalizedDish = applyDishAutofill(dish)
+        val normalizedDish = applyDishAutofill(dish).copy(createdAt = nowTomsk(), updatedAt = null)
         val dishes = repository.dishes()
         dishes += normalizedDish
         repository.saveDishes(dishes)
@@ -72,7 +91,11 @@ class RecipeService(private val repository: RecipeRepository) {
         val items = repository.dishes()
         val index = items.indexOfFirst { it.id == id }
         require(index >= 0) { "Dish not found" }
-        val normalized = applyDishAutofill(dish).copy(id = id, createdAt = items[index].createdAt, updatedAt = Instant.now().toString())
+        val normalized = applyDishAutofill(dish).copy(
+            id = id,
+            createdAt = items[index].createdAt,
+            updatedAt = nowTomsk()
+        )
         items[index] = normalized
         repository.saveDishes(items)
         return normalized
@@ -88,7 +111,8 @@ class RecipeService(private val repository: RecipeRepository) {
     fun calculateNutrition(ingredients: List<DishIngredient>): Nutrition {
         val productsById = repository.products().associateBy { it.id }
         fun calc(selector: (Nutrition) -> Double): Double = ingredients.sumOf { ingredient ->
-            val product = requireNotNull(productsById[ingredient.productId]) { "Product ${ingredient.productId} not found" }
+            val product =
+                requireNotNull(productsById[ingredient.productId]) { "Product ${ingredient.productId} not found" }
             selector(product.nutritionPer100g) * ingredient.grams / 100.0
         }
         return Nutrition(
@@ -144,7 +168,8 @@ class RecipeService(private val repository: RecipeRepository) {
         return dish.copy(
             name = titleWithoutMacro,
             flags = dish.flags.intersect(allowedFlags),
-            category = dish.category.takeIf { it in DishCategory.entries } ?: macroCategory ?: DishCategory.SNACK,
+            category = dish.category.takeIf { it in DishCategory.entries } ?: macroCategory
+            ?: DishCategory.SNACK,
         )
     }
 
@@ -184,4 +209,5 @@ class RecipeService(private val repository: RecipeRepository) {
     }
 }
 
-class ProductDeletionBlockedException(val dishNames: List<String>) : RuntimeException("Product is used in dishes")
+class ProductDeletionBlockedException(val dishNames: List<String>) :
+    RuntimeException("Product is used in dishes")

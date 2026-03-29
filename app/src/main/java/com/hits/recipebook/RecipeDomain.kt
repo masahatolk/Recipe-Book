@@ -114,6 +114,17 @@ fun resolveDishNameAndMacroCategory(name: String): Pair<String, DishCategory?> {
     return cleaned to macroCategory
 }
 
+fun resolveDishCategoryFromMacros(name: String): DishCategory? {
+    val normalizedName = name.trim().lowercase()
+    return macroMap.entries
+        .mapNotNull { entry ->
+            val index = normalizedName.indexOf(entry.key)
+            if (index >= 0) entry.value to index else null
+        }
+        .minByOrNull { it.second }
+        ?.first
+}
+
 fun calculateNutrition(ingredients: List<DishIngredient>, productsById: Map<String, Product>): Nutrition {
     fun calc(selector: (Nutrition) -> Double): Double = ingredients.sumOf {
         val product = productsById[it.productId] ?: return@sumOf 0.0
