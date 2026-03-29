@@ -184,12 +184,21 @@ fun RecipeBookApp() {
 
     LaunchedEffect(Unit) {
         runCatching {
-            val loadedProducts = api.getProducts().map { it.withNormalizedPhotoUrls() }
-            val loadedDishes = api.getDishes().map { it.withNormalizedPhotoUrls() }
-            products.clear(); products.addAll(loadedProducts)
-            dishes.clear(); dishes.addAll(loadedDishes)
+            api.getProducts().map { it.withNormalizedPhotoUrls() }
+        }.onSuccess { loadedProducts ->
+            products.clear()
+            products.addAll(loadedProducts)
         }.onFailure {
-            snackBarHostState.showSnackbar("Не удалось загрузить данные с сервера: ${it.message}")
+            snackBarHostState.showSnackbar("Не удалось загрузить продукты: ${it.message}")
+        }
+
+        runCatching {
+            api.getDishes().map { it.withNormalizedPhotoUrls() }
+        }.onSuccess { loadedDishes ->
+            dishes.clear()
+            dishes.addAll(loadedDishes)
+        }.onFailure {
+            snackBarHostState.showSnackbar("Не удалось загрузить блюда: ${it.message}")
         }
     }
 
