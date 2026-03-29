@@ -184,8 +184,8 @@ fun RecipeBookApp() {
 
     LaunchedEffect(Unit) {
         runCatching {
-            val loadedProducts = api.getProducts()
-            val loadedDishes = api.getDishes()
+            val loadedProducts = api.getProducts().map { it.withNormalizedPhotoUrls() }
+            val loadedDishes = api.getDishes().map { it.withNormalizedPhotoUrls() }
             products.clear(); products.addAll(loadedProducts)
             dishes.clear(); dishes.addAll(loadedDishes)
         }.onFailure {
@@ -293,7 +293,7 @@ fun RecipeBookApp() {
                                                 api.createProduct(request)
                                             } else {
                                                 api.updateProduct(productForm.id!!, request)
-                                            }
+                                            }.withNormalizedPhotoUrls()
                                             val currentIndex = products.indexOfFirst { it.id == saved.id }
                                             if (currentIndex >= 0) products[currentIndex] = saved else products += saved
                                             productForm = ProductFormState()
@@ -497,7 +497,7 @@ fun RecipeBookApp() {
                                                 api.createDish(request)
                                             } else {
                                                 api.updateDish(dishForm.id!!, request)
-                                            }
+                                            }.withNormalizedPhotoUrls()
                                             val index = dishes.indexOfFirst { it.id == saved.id }
                                             if (index >= 0) dishes[index] = saved else dishes += saved
                                             dishForm = DishFormState()
@@ -1335,6 +1335,29 @@ private fun encodePhotoAsDataUrl(
 }
 
 private fun Double.toOneDecimal(): String = "%.1f".format(this)
+
+private fun Product.withNormalizedPhotoUrls(): Product = copy(
+    photos = photos.map { normalizePhotoUrl(it) }
+)
+
+private fun Dish.withNormalizedPhotoUrls(): Dish = copy(
+    photos = photos.map { normalizePhotoUrl(it) }
+)
+
+private fun normalizePhotoUrl(url: String): String {
+    if (
+        url.startsWith("http://") ||
+        url.startsWith("https://") ||
+        url.startsWith("data:image", ignoreCase = true) ||
+        url.startsWith("content://") ||
+        url.startsWith("file://")
+    ) {
+        return url
+    }
+
+    return "${RecipeBookApiFactory.BASE_URL.trimEnd('/')}/${url.trimStart('/')}"
+}
+
 
 @Preview(showBackground = true)
 @Composable

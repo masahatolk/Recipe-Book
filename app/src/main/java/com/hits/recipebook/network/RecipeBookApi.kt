@@ -47,7 +47,7 @@ interface RecipeBookApi {
     @GET("api/dishes")
     suspend fun getDishes(
         @Query("category") category: DishCategory? = null,
-        @Query("flag") flags: List<ExtraFlag> = emptyList(),
+        @Query("flag") flags: List<@JvmSuppressWildcards ExtraFlag> = emptyList(),
         @Query("query") query: String? = null,
     ): List<Dish>
 
