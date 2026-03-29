@@ -96,6 +96,12 @@ data class DishCalculationResponse(
 data class PhotoUploadResponse(
     val url: String,
 )
+
+data class DeletionBlockedResponse(
+    val message: String,
+    val dishNames: List<String> = emptyList(),
+)
+
 object RecipeBookApiFactory {
     private const val EMULATOR_HOST = "10.0.2.2"
     private const val DEVICE_HOST = "127.0.0.1"

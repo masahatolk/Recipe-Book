@@ -64,6 +64,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.google.gson.Gson
+import com.hits.recipebook.network.DeletionBlockedResponse
 import com.hits.recipebook.network.DishUpsertRequest
 import com.hits.recipebook.network.ProductUpsertRequest
 import com.hits.recipebook.network.RecipeBookApi
@@ -76,8 +78,11 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.HttpException
 import java.io.ByteArrayOutputStream
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 import java.util.Base64
 import java.util.Locale
 
@@ -208,7 +213,8 @@ fun RecipeBookApp() {
         modifier = Modifier.fillMaxSize(),
         snackbarHost = { SnackbarHost(snackBarHostState) }
     ) { padding ->
-        val isEditorVisible = (tab == 0 && isProductEditorVisible) || (tab == 1 && isDishEditorVisible)
+        val isEditorVisible =
+            (tab == 0 && isProductEditorVisible) || (tab == 1 && isDishEditorVisible)
         Column(
             modifier = Modifier
                 .padding(padding)
@@ -305,8 +311,10 @@ fun RecipeBookApp() {
                                             } else {
                                                 api.updateProduct(productForm.id!!, request)
                                             }.withNormalizedPhotoUrls()
-                                            val currentIndex = products.indexOfFirst { it.id == saved.id }
-                                            if (currentIndex >= 0) products[currentIndex] = saved else products += saved
+                                            val currentIndex =
+                                                products.indexOfFirst { it.id == saved.id }
+                                            if (currentIndex >= 0) products[currentIndex] =
+                                                saved else products += saved
                                             productForm = ProductFormState()
                                             productError = null
                                             isProductEditorVisible = false
@@ -407,11 +415,27 @@ fun RecipeBookApp() {
                                                     api.deleteProduct(product.id)
                                                     products.remove(product)
                                                 }.onFailure { error ->
-                                                    val message = if (error is HttpException && error.code() == 409) {
-                                                        "Удаление недоступно: продукт используется в блюдах"
-                                                    } else {
-                                                        "Ошибка удаления продукта: ${error.message}"
-                                                    }
+                                                    val message =
+                                                        if (error is HttpException && error.code() == 409) {
+                                                            val blocked =
+                                                                error.response()?.errorBody()
+                                                                    ?.string().orEmpty()
+                                                            val parsed = runCatching {
+                                                                Gson().fromJson(
+                                                                    blocked,
+                                                                    DeletionBlockedResponse::class.java
+                                                                )
+                                                            }.getOrNull()
+                                                            val dishNames =
+                                                                parsed?.dishNames.orEmpty()
+                                                            if (dishNames.isNotEmpty()) {
+                                                                "Удаление недоступно: продукт используется в блюдах: ${dishNames.joinToString()}"
+                                                            } else {
+                                                                "Удаление недоступно: продукт используется в блюдах"
+                                                            }
+                                                        } else {
+                                                            "Ошибка удаления продукта: ${error.message}"
+                                                        }
                                                     snackBarHostState.showSnackbar(message)
                                                 }
                                             }
@@ -510,7 +534,8 @@ fun RecipeBookApp() {
                                                 api.updateDish(dishForm.id!!, request)
                                             }.withNormalizedPhotoUrls()
                                             val index = dishes.indexOfFirst { it.id == saved.id }
-                                            if (index >= 0) dishes[index] = saved else dishes += saved
+                                            if (index >= 0) dishes[index] =
+                                                saved else dishes += saved
                                             dishForm = DishFormState()
                                             dishError = null
                                             isDishEditorVisible = false
@@ -678,7 +703,14 @@ private fun ProductEditor(
         rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
             if (uri == null || form.photos.size >= 5) return@rememberLauncherForActivityResult
             scope.launch {
-                runCatching { uploadImage(context.contentResolver, api, uri.toString(), uri.lastPathSegment) }
+                runCatching {
+                    uploadImage(
+                        context.contentResolver,
+                        api,
+                        uri.toString(),
+                        uri.lastPathSegment
+                    )
+                }
                     .onSuccess { uploadedUrl -> onChange(form.copy(photos = form.photos + uploadedUrl)) }
                     .onFailure { onUploadFailure("Не удалось загрузить фото: ${it.message}") }
             }
@@ -793,7 +825,14 @@ private fun DishEditor(
         rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
             if (uri == null || form.photos.size >= 5) return@rememberLauncherForActivityResult
             scope.launch {
-                runCatching { uploadImage(context.contentResolver, api, uri.toString(), uri.lastPathSegment) }
+                runCatching {
+                    uploadImage(
+                        context.contentResolver,
+                        api,
+                        uri.toString(),
+                        uri.lastPathSegment
+                    )
+                }
                     .onSuccess { uploadedUrl -> onChange(form.copy(photos = form.photos + uploadedUrl)) }
                     .onFailure { onUploadFailure("Не удалось загрузить фото: ${it.message}") }
             }
@@ -1297,13 +1336,40 @@ private fun flagsText(flags: Set<ExtraFlag>): String =
 
 private fun humanReadableDateTime(rawDateTime: String?): String {
     if (rawDateTime.isNullOrBlank()) return "—"
-    return runCatching {
-        val instant = Instant.parse(rawDateTime)
-        val localDateTime = instant.atZone(ZoneId.systemDefault())
-        localDateTime.format(
-            DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm", Locale("ru", "RU"))
-        )
-    }.getOrElse { rawDateTime }
+    val formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm", Locale("ru", "RU"))
+
+    val zonedDateTime = parseToInstantOrNull(rawDateTime)
+        ?.atZone(ZoneId.systemDefault())
+        ?.toLocalDateTime()
+        ?: parseToLocalDateTimeOrNull(rawDateTime)
+        ?: return rawDateTime.substringBefore("T").takeIf { it.isNotBlank() } ?: rawDateTime
+
+    return zonedDateTime.format(formatter)
+}
+
+private fun parseToInstantOrNull(value: String): Instant? {
+    return runCatching { Instant.parse(value) }.getOrNull()
+        ?: runCatching { OffsetDateTime.parse(value).toInstant() }.getOrNull()
+        ?: value.toLongOrNull()?.let { epoch ->
+            runCatching { Instant.ofEpochMilli(epoch) }.getOrNull()
+                ?: runCatching { Instant.ofEpochSecond(epoch) }.getOrNull()
+        }
+}
+
+private fun parseToLocalDateTimeOrNull(value: String): LocalDateTime? {
+    val localPatterns = listOf(
+        DateTimeFormatter.ISO_LOCAL_DATE_TIME,
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"),
+    )
+    for (pattern in localPatterns) {
+        try {
+            return LocalDateTime.parse(value, pattern)
+        } catch (_: DateTimeParseException) {
+            // try next pattern
+        }
+    }
+    return null
 }
 
 private suspend fun uploadImage(
@@ -1313,7 +1379,8 @@ private suspend fun uploadImage(
     originalName: String?,
 ): String {
     val uri = android.net.Uri.parse(uriString)
-    val bytes = requireNotNull(contentResolver.openInputStream(uri)) { "Не удалось открыть изображение" }.use { it.readBytes() }
+    val bytes =
+        requireNotNull(contentResolver.openInputStream(uri)) { "Не удалось открыть изображение" }.use { it.readBytes() }
     val fileName = originalName?.takeIf { it.isNotBlank() } ?: "photo.jpg"
     return runCatching {
         val requestBody = bytes.toRequestBody("image/*".toMediaType())
@@ -1344,10 +1411,12 @@ private fun encodePhotoAsDataUrl(
         inSampleSize *= 2
     }
 
-    val decodeOptions = android.graphics.BitmapFactory.Options().apply { this.inSampleSize = inSampleSize }
-    val bitmap = requireNotNull(contentResolver.openInputStream(uri)) { "Не удалось открыть изображение" }.use { input ->
-        android.graphics.BitmapFactory.decodeStream(input, null, decodeOptions)
-    } ?: error("Не удалось декодировать изображение")
+    val decodeOptions =
+        android.graphics.BitmapFactory.Options().apply { this.inSampleSize = inSampleSize }
+    val bitmap =
+        requireNotNull(contentResolver.openInputStream(uri)) { "Не удалось открыть изображение" }.use { input ->
+            android.graphics.BitmapFactory.decodeStream(input, null, decodeOptions)
+        } ?: error("Не удалось декодировать изображение")
 
     val output = ByteArrayOutputStream()
     bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, output)
@@ -1389,7 +1458,8 @@ private fun decodeDataImageToBitmapOrNull(photo: String): android.graphics.Bitma
 
     val payload = photo.substring(base64Start + delimiter.length)
     val sanitizedPayload = payload.filterNot { it == '\n' || it == '\r' || it == ' ' || it == '\t' }
-    val bytes = runCatching { Base64.getDecoder().decode(sanitizedPayload) }.getOrNull() ?: return null
+    val bytes =
+        runCatching { Base64.getDecoder().decode(sanitizedPayload) }.getOrNull() ?: return null
     return android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
 }
 
