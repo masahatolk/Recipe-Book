@@ -125,6 +125,16 @@ fun resolveDishCategoryFromMacros(name: String): DishCategory? {
         ?.first
 }
 
+fun resolveDishNameAndCategoryForSave(
+    name: String,
+    manuallySelectedCategory: DishCategory?
+): Pair<String, DishCategory?> {
+    if (manuallySelectedCategory != null) {
+        return name.trim() to manuallySelectedCategory
+    }
+    return resolveDishNameAndMacroCategory(name)
+}
+
 fun calculateNutrition(ingredients: List<DishIngredient>, productsById: Map<String, Product>): Nutrition {
     fun calc(selector: (Nutrition) -> Double): Double = ingredients.sumOf {
         val product = productsById[it.productId] ?: return@sumOf 0.0

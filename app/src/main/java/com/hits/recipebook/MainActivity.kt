@@ -499,18 +499,13 @@ fun RecipeBookApp() {
                                         dishForm.portionSize,
                                         "Размер порции"
                                     ).also { require(it > 0) { "Размер порции должен быть больше 0" } }
-                                    val nameForSaving: String
-                                    val category: DishCategory
-                                    if (dishForm.category != null) {
-                                        nameForSaving = dishForm.name.trim()
-                                        category = dishForm.category!!
-                                    } else {
-                                        val (resolvedName, macroCategory) =
-                                            resolveDishNameAndMacroCategory(dishForm.name)
-                                        nameForSaving = resolvedName
-                                        category = requireNotNull(macroCategory) {
-                                            "Укажите категорию или добавьте макрос в названии"
-                                        }
+                                    val (nameForSaving, categoryFromSelectionOrMacro) =
+                                        resolveDishNameAndCategoryForSave(
+                                            name = dishForm.name,
+                                            manuallySelectedCategory = dishForm.category
+                                        )
+                                    val category = requireNotNull(categoryFromSelectionOrMacro) {
+                                        "Укажите категорию или добавьте макрос в названии"
                                     }
                                     val nutrition = Nutrition(
                                         calories = parseRequiredDouble(
