@@ -4,9 +4,19 @@ plugins {
     application
 }
 
+kotlin {
+    jvmToolchain(21)
+}
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }
+}
+
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile>().configureEach {
     compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
     }
 }
 
@@ -19,7 +29,7 @@ dependencies {
     implementation(libs.ktor.server.call.logging)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.logback.classic)
-    implementation(libs.ktor.server.static.content)
+    implementation(libs.junit.junit)
     testImplementation(libs.junit)
     testImplementation(kotlin("test"))
     testImplementation(libs.ktor.server.test.host)
