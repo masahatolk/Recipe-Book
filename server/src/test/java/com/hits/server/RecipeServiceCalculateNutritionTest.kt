@@ -9,6 +9,7 @@ import org.junit.Before
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
+import kotlin.test.assertFailsWith
 
 /**
  * Тесты автоматического расчета КБЖУ блюда.
@@ -211,6 +212,29 @@ class RecipeServiceCalculateNutritionTest {
         val secondResult = service.calculateNutrition(secondOrder)
 
         assertNutrition(expected = firstResult, actual = secondResult)
+    }
+
+    /**
+     * Анализ граничных значений + невалидные классы:
+     * отрицательные и нечисловые значения массы ингредиента должны отклоняться.
+     */
+    @Test
+    fun `calculateNutrition - invalid grams values throw`() {
+        val invalidCases = listOf(
+            -0.1,
+            -10.0,
+            Double.NaN,
+            Double.NEGATIVE_INFINITY,
+            Double.POSITIVE_INFINITY,
+        )
+
+        invalidCases.forEach { grams ->
+            assertFailsWith<IllegalArgumentException>("Expected IllegalArgumentException for grams=$grams") {
+                service.calculateNutrition(
+                    listOf(DishIngredient(productId = "buckwheat", grams = grams))
+                )
+            }
+        }
     }
 
     private fun product(

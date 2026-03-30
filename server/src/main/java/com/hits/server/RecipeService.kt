@@ -109,6 +109,10 @@ class RecipeService(private val repository: RecipeRepository) {
     fun dish(id: String): Dish = repository.dishes().first { it.id == id }
 
     fun calculateNutrition(ingredients: List<DishIngredient>): Nutrition {
+        ingredients.forEach { ingredient ->
+            require(ingredient.grams.isFinite()) { "Ingredient grams must be finite numbers" }
+            require(ingredient.grams >= 0.0) { "Ingredient grams must be >= 0" }
+        }
         val productsById = repository.products().associateBy { it.id }
         fun calc(selector: (Nutrition) -> Double): Double = ingredients.sumOf { ingredient ->
             val product =
