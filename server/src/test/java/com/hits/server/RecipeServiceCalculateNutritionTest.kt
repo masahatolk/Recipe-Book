@@ -14,9 +14,11 @@ import kotlin.test.assertFailsWith
 /**
  * Тесты автоматического расчета КБЖУ блюда.
  *
- * Покрытие данных построено двумя техниками тест-дизайна:
- * 1) Эквивалентное разбиение (валидные и невалидные классы входов).
- * 2) Анализ граничных значений (0 г, 1 г, 100 г, дробные граммы).
+ * Набор построен с явным применением техник тест-дизайна:
+ * - Эквивалентное разбиение: валидные/невалидные классы входов.
+ * - Анализ граничных значений: 0, окрестности 0, 1, 100, большие и дробные значения.
+ *
+ * Дополнительно проверены инварианты (порядок ингредиентов, аддитивность).
  */
 class RecipeServiceCalculateNutritionTest {
     private lateinit var dataDir: File
@@ -52,6 +54,13 @@ class RecipeServiceCalculateNutritionTest {
                     fats = 100.0,
                     carbs = 0.0,
                 ),
+                product(
+                    id = "water",
+                    calories = 0.0,
+                    proteins = 0.0,
+                    fats = 0.0,
+                    carbs = 0.0,
+                ),
             )
         )
     }
@@ -62,11 +71,10 @@ class RecipeServiceCalculateNutritionTest {
     }
 
     /**
-     * Эквивалентное разбиение: валидный класс "однотипный состав из одного продукта".
-     * Проверяем, что для одного ингредиента применяется формула valuePer100g * grams / 100.
+     * Эквивалентное разбиение: валидный класс "одно блюдо из одного ингредиента".
      */
     @Test
-    fun `calculateNutrition - equivalence class single ingredient`() {
+    fun `calculateNutrition - single ingredient valid equivalence class`() {
         val result = service.calculateNutrition(
             ingredients = listOf(DishIngredient(productId = "buckwheat", grams = 150.0))
         )
@@ -83,11 +91,10 @@ class RecipeServiceCalculateNutritionTest {
     }
 
     /**
-     * Эквивалентное разбиение: валидный класс "смешанный состав из нескольких продуктов".
-     * Проверяем суммирование вкладов каждого ингредиента.
+     * Эквивалентное разбиение: валидный класс "несколько ингредиентов".
      */
     @Test
-    fun `calculateNutrition - equivalence class multiple ingredients`() {
+    fun `calculateNutrition - multi ingredient valid equivalence class`() {
         val result = service.calculateNutrition(
             ingredients = listOf(
                 DishIngredient(productId = "buckwheat", grams = 80.0),
@@ -108,27 +115,11 @@ class RecipeServiceCalculateNutritionTest {
     }
 
     /**
-     * Эквивалентное разбиение: невалидный класс "ингредиент с несуществующим productId".
-     * Ожидаем информативное исключение.
-     */
-    @Test
-    fun `calculateNutrition - equivalence class unknown product id throws`() {
-        val exception = kotlin.runCatching {
-            service.calculateNutrition(
-                ingredients = listOf(DishIngredient(productId = "unknown-id", grams = 20.0))
-            )
-        }.exceptionOrNull()
-
-        assertTrue("Expected IllegalArgumentException", exception is IllegalArgumentException)
-        assertTrue(exception?.message?.contains("unknown-id") == true)
-    }
-
-    /**
      * Эквивалентное разбиение: валидный класс "пустой состав".
-     * Для пустого списка ингредиентов сумма по формуле должна быть нулевой.
+     * Ожидаем нулевую сумму по всем полям.
      */
     @Test
-    fun `calculateNutrition - equivalence class empty ingredients returns zero nutrition`() {
+    fun `calculateNutrition - empty ingredients returns zero`() {
         val result = service.calculateNutrition(emptyList())
 
         assertNutrition(
@@ -143,40 +134,23 @@ class RecipeServiceCalculateNutritionTest {
     }
 
     /**
-     * Анализ граничных значений для количества ингредиента (grams).
-     * Границы и окрестности: 0 г, 1 г, 100 г и дробное значение 0.5 г.
+     * Анализ граничных значений массы ингредиента (grams):
+     * 0, минимально положительное, 0.5, 1, 100.
      */
     @Test
     fun `calculateNutrition - boundary values for grams`() {
         val cases = listOf(
+            BoundaryCase(grams = 0.0, expectedCalories = 0.0, expectedProteins = 0.0, expectedFats = 0.0, expectedCarbs = 0.0),
             BoundaryCase(
-                grams = 0.0,
-                expectedCalories = 0.0,
-                expectedProteins = 0.0,
-                expectedFats = 0.0,
-                expectedCarbs = 0.0,
+                grams = Double.MIN_VALUE,
+                expectedCalories = 343.0 * Double.MIN_VALUE / 100.0,
+                expectedProteins = 13.3 * Double.MIN_VALUE / 100.0,
+                expectedFats = 3.4 * Double.MIN_VALUE / 100.0,
+                expectedCarbs = 71.5 * Double.MIN_VALUE / 100.0,
             ),
-            BoundaryCase(
-                grams = 0.5,
-                expectedCalories = 1.715,
-                expectedProteins = 0.0665,
-                expectedFats = 0.017,
-                expectedCarbs = 0.3575,
-            ),
-            BoundaryCase(
-                grams = 1.0,
-                expectedCalories = 3.43,
-                expectedProteins = 0.133,
-                expectedFats = 0.034,
-                expectedCarbs = 0.715,
-            ),
-            BoundaryCase(
-                grams = 100.0,
-                expectedCalories = 343.0,
-                expectedProteins = 13.3,
-                expectedFats = 3.4,
-                expectedCarbs = 71.5,
-            ),
+            BoundaryCase(grams = 0.5, expectedCalories = 1.715, expectedProteins = 0.0665, expectedFats = 0.017, expectedCarbs = 0.3575),
+            BoundaryCase(grams = 1.0, expectedCalories = 3.43, expectedProteins = 0.133, expectedFats = 0.034, expectedCarbs = 0.715),
+            BoundaryCase(grams = 100.0, expectedCalories = 343.0, expectedProteins = 13.3, expectedFats = 3.4, expectedCarbs = 71.5),
         )
 
         cases.forEach { case ->
@@ -196,8 +170,75 @@ class RecipeServiceCalculateNutritionTest {
     }
 
     /**
-     * Эквивалентное разбиение: валидный класс "одинаковый состав в разном порядке".
-     * Проверяем инвариантность суммы КБЖУ к перестановке ингредиентов.
+     * Граничное значение сверху: очень большие, но конечные числа допустимы.
+     */
+    @Test
+    fun `calculateNutrition - very large but finite grams`() {
+        val grams = 1_000_000_000.0
+
+        val result = service.calculateNutrition(
+            listOf(DishIngredient(productId = "water", grams = grams))
+        )
+
+        assertNutrition(
+            expected = Nutrition(0.0, 0.0, 0.0, 0.0),
+            actual = result,
+        )
+    }
+
+    /**
+     * Эквивалентное разбиение: невалидный класс grams < 0.
+     */
+    @Test
+    fun `calculateNutrition - negative grams are invalid`() {
+        val invalidCases = listOf(-Double.MIN_VALUE, -0.1, -1.0, -100.0)
+
+        invalidCases.forEach { grams ->
+            assertFailsWith<IllegalArgumentException>("Expected IllegalArgumentException for grams=$grams") {
+                service.calculateNutrition(listOf(DishIngredient(productId = "buckwheat", grams = grams)))
+            }
+        }
+    }
+
+    /**
+     * Эквивалентное разбиение: невалидный класс "нечисловые/бесконечные" значения grams.
+     */
+    @Test
+    fun `calculateNutrition - non finite grams are invalid`() {
+        val invalidCases = listOf(Double.NaN, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY)
+
+        invalidCases.forEach { grams ->
+            assertFailsWith<IllegalArgumentException>("Expected IllegalArgumentException for grams=$grams") {
+                service.calculateNutrition(listOf(DishIngredient(productId = "buckwheat", grams = grams)))
+            }
+        }
+    }
+
+    /**
+     * Эквивалентное разбиение: невалидный класс "неизвестный productId".
+     */
+    @Test
+    fun `calculateNutrition - unknown product id throws`() {
+        val invalidIds = listOf(
+            "unknown-id",
+            "",
+            "   ",
+            "https://example.com/product/1",
+            "#$%^&*",
+        )
+
+        invalidIds.forEach { productId ->
+            val exception = kotlin.runCatching {
+                service.calculateNutrition(listOf(DishIngredient(productId = productId, grams = 20.0)))
+            }.exceptionOrNull()
+
+            assertTrue("Expected IllegalArgumentException for productId='$productId'", exception is IllegalArgumentException)
+            assertTrue(exception?.message?.contains(productId.trim()) != false)
+        }
+    }
+
+    /**
+     * Инвариант: порядок ингредиентов не влияет на результат.
      */
     @Test
     fun `calculateNutrition - ingredient order does not affect result`() {
@@ -215,26 +256,62 @@ class RecipeServiceCalculateNutritionTest {
     }
 
     /**
-     * Анализ граничных значений + невалидные классы:
-     * отрицательные и нечисловые значения массы ингредиента должны отклоняться.
+     * Инвариант аддитивности:
+     * вклад одного и того же продукта в двух строках равен вкладу в одной строке с суммой grams.
      */
     @Test
-    fun `calculateNutrition - invalid grams values throw`() {
-        val invalidCases = listOf(
-            -0.1,
-            -10.0,
-            Double.NaN,
-            Double.NEGATIVE_INFINITY,
-            Double.POSITIVE_INFINITY,
+    fun `calculateNutrition - duplicate ingredient rows are additive`() {
+        val splitIngredients = listOf(
+            DishIngredient(productId = "chicken", grams = 30.0),
+            DishIngredient(productId = "chicken", grams = 70.0),
+        )
+        val mergedIngredients = listOf(DishIngredient(productId = "chicken", grams = 100.0))
+
+        val splitResult = service.calculateNutrition(splitIngredients)
+        val mergedResult = service.calculateNutrition(mergedIngredients)
+
+        assertNutrition(mergedResult, splitResult)
+    }
+
+    /**
+     * Невалидный состав: если среди валидных ингредиентов встречается неизвестный продукт,
+     * расчет должен завершиться ошибкой (fail-fast).
+     */
+    @Test
+    fun `calculateNutrition - mixed valid and invalid product ids throws`() {
+        val ingredients = listOf(
+            DishIngredient(productId = "buckwheat", grams = 50.0),
+            DishIngredient(productId = "not-exists", grams = 10.0),
+            DishIngredient(productId = "oil", grams = 5.0),
         )
 
-        invalidCases.forEach { grams ->
-            assertFailsWith<IllegalArgumentException>("Expected IllegalArgumentException for grams=$grams") {
-                service.calculateNutrition(
-                    listOf(DishIngredient(productId = "buckwheat", grams = grams))
-                )
-            }
+        val exception = assertFailsWith<IllegalArgumentException> {
+            service.calculateNutrition(ingredients)
         }
+        assertTrue(exception.message?.contains("not-exists") == true)
+    }
+
+    /**
+     * Контроль точности на дробных значениях, чтобы исключить ошибки округления в логике.
+     */
+    @Test
+    fun `calculateNutrition - fractional grams precision`() {
+        val result = service.calculateNutrition(
+            ingredients = listOf(
+                DishIngredient(productId = "buckwheat", grams = 33.333),
+                DishIngredient(productId = "oil", grams = 0.125),
+            )
+        )
+
+        assertNutrition(
+            expected = Nutrition(
+                calories = (343.0 * 33.333 / 100.0) + (884.0 * 0.125 / 100.0),
+                proteins = (13.3 * 33.333 / 100.0),
+                fats = (3.4 * 33.333 / 100.0) + (100.0 * 0.125 / 100.0),
+                carbs = (71.5 * 33.333 / 100.0),
+            ),
+            actual = result,
+        )
     }
 
     private fun product(
