@@ -200,6 +200,9 @@ class RecipeService(private val repository: RecipeRepository) {
         require(dish.nutritionPerPortion.proteins >= 0) { "Proteins must be >= 0" }
         require(dish.nutritionPerPortion.fats >= 0) { "Fats must be >= 0" }
         require(dish.nutritionPerPortion.carbs >= 0) { "Carbs must be >= 0" }
+        require(
+            dish.nutritionPerPortion.proteins + dish.nutritionPerPortion.fats + dish.nutritionPerPortion.carbs <= dish.portionSizeGrams
+        ) { "Proteins + fats + carbs per portion must be <= portion size grams" }
     }
 
     private fun productComparator(sortBy: String): Comparator<Product> = when (sortBy.lowercase()) {

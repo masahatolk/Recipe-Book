@@ -518,6 +518,9 @@ fun RecipeBookApp() {
                                             carbs = parseRequiredDouble(dishForm.carbs, "Углеводы"),
                                         )
                                     } else autoNutrition
+                                    require(nutrition.proteins + nutrition.fats + nutrition.carbs <= portion) {
+                                        "Сумма БЖУ на порцию не может превышать вес порции в граммах"
+                                    }
                                     val allowedFlags = allowedDishFlags(ingredients, productById)
                                     val request = DishUpsertRequest(
                                         name = nameForSaving,
@@ -748,7 +751,7 @@ private fun ProductEditor(
             NutritionField("Ккал", form.calories) { onChange(form.copy(calories = it)) }
             NutritionField("Белки", form.proteins) { onChange(form.copy(proteins = it)) }
             NutritionField("Жиры", form.fats) { onChange(form.copy(fats = it)) }
-            NutritionField("Углев.", form.carbs) { onChange(form.copy(carbs = it)) }
+            NutritionField("Углеводы", form.carbs) { onChange(form.copy(carbs = it)) }
         }
         OutlinedTextField(
             form.composition,
@@ -938,7 +941,7 @@ private fun DishEditor(
                     )
                 )
             }
-            NutritionField("Углев.", form.carbs) {
+            NutritionField("Углеводы", form.carbs) {
                 onChange(
                     form.copy(
                         carbs = it,
