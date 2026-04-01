@@ -135,11 +135,24 @@ fun resolveDishNameAndCategoryForSave(
     return resolveDishNameAndMacroCategory(name)
 }
 
-fun calculateNutrition(ingredients: List<DishIngredient>, productsById: Map<String, Product>): Nutrition {
+fun calculateNutrition(
+    ingredients: List<DishIngredient>,
+    productsById: Map<String, Product>,
+    portionSizeGrams: Double,
+): Nutrition {
+    if (ingredients.isEmpty() || portionSizeGrams <= 0.0) {
+        return Nutrition(0.0, 0.0, 0.0, 0.0)
+    }
+    val totalGrams = ingredients.sumOf { it.grams }
+    if (totalGrams <= 0.0) {
+        return Nutrition(0.0, 0.0, 0.0, 0.0)
+    }
+    val portionRatio = portionSizeGrams / totalGrams
     fun calc(selector: (Nutrition) -> Double): Double = ingredients.sumOf {
         val product = productsById[it.productId] ?: return@sumOf 0.0
         selector(product.nutritionPer100g) * it.grams / 100.0
     }
+        .times(portionRatio)
     return Nutrition(
         calories = calc { it.calories },
         proteins = calc { it.proteins },

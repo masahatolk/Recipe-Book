@@ -485,7 +485,6 @@ fun RecipeBookApp() {
                             },
                             onSave = {
                                 runCatching {
-                                    require(dishForm.name.trim().length >= 2) { "Название блюда: минимум 2 символа" }
                                     require(dishForm.photos.size <= 5) { "Можно указать не более 5 фото" }
                                     val ingredients =
                                         dishForm.ingredientGrams.mapNotNull { (productId, gramsText) ->
@@ -504,25 +503,13 @@ fun RecipeBookApp() {
                                             name = dishForm.name,
                                             manuallySelectedCategory = dishForm.category
                                         )
+                                    require(nameForSaving.length >= 2) {
+                                        "Название блюда: минимум 2 символа (макросы в это число не входят)"
+                                    }
                                     val category = requireNotNull(categoryFromSelectionOrMacro) {
                                         "Укажите категорию или добавьте макрос в названии"
                                     }
-                                    val nutrition = Nutrition(
-                                        calories = parseRequiredDouble(
-                                            dishForm.calories,
-                                            "Калорийность"
-                                        )
-                                            .also { require(it >= 0) { "Калорийность должна быть >= 0" } },
-                                        proteins = parseRequiredDouble(dishForm.proteins, "Белки")
-                                            .also { require(it >= 0) { "Белки должны быть >= 0" } },
-                                        fats = parseRequiredDouble(dishForm.fats, "Жиры")
-                                            .also { require(it >= 0) { "Жиры должны быть >= 0" } },
-                                        carbs = parseRequiredDouble(dishForm.carbs, "Углеводы")
-                                            .also { require(it >= 0) { "Углеводы должны быть >= 0" } },
-                                    )
-                                    require(nutrition.proteins + nutrition.fats + nutrition.carbs <= 100.0) {
-                                        "Сумма БЖУ на порцию не может превышать 100"
-                                    }
+                                    val nutrition = calculateNutrition(ingredients, productById, portion)
                                     val allowedFlags = allowedDishFlags(ingredients, productById)
                                     val request = DishUpsertRequest(
                                         name = nameForSaving,
@@ -551,31 +538,6 @@ fun RecipeBookApp() {
                                         }
                                     }
                                 }.onFailure { dishError = it.message ?: "Ошибка сохранения" }
-                            },
-                            onAutoFillNutrition = {
-                                val ingredients =
-                                    dishForm.ingredientGrams.mapNotNull { (id, gramsText) ->
-                                        val grams =
-                                            gramsText.toDoubleOrNull() ?: return@mapNotNull null
-                                        if (grams <= 0) return@mapNotNull null
-                                        DishIngredient(id, grams)
-                                    }
-                                scope.launch {
-                                    runCatching {
-                                        val calculation = api.calculateDish(ingredients)
-                                        val nutrition = calculation.nutrition
-                                        dishForm = dishForm.copy(
-                                            calories = nutrition.calories.toOneDecimal(),
-                                            proteins = nutrition.proteins.toOneDecimal(),
-                                            fats = nutrition.fats.toOneDecimal(),
-                                            carbs = nutrition.carbs.toOneDecimal(),
-                                            flags = dishForm.flags.intersect(calculation.availableFlags),
-                                            isNutritionManuallyEdited = false,
-                                        )
-                                    }.onFailure {
-                                        dishError = "Не удалось рассчитать КБЖУ: ${it.message}"
-                                    }
-                                }
                             },
                             onCancel = {
                                 dishForm = DishFormState()
@@ -674,7 +636,13 @@ fun RecipeBookApp() {
         }
     }
 
-    LaunchedEffect(dishForm.ingredientGrams, products.size, tab, isDishEditorVisible) {
+    LaunchedEffect(
+        dishForm.ingredientGrams,
+        dishForm.portionSize,
+        products.size,
+        tab,
+        isDishEditorVisible
+    ) {
         if (tab == 1 && isDishEditorVisible) {
             val ingredients = dishForm.ingredientGrams.mapNotNull { (id, gramsText) ->
                 val grams = gramsText.toDoubleOrNull() ?: return@mapNotNull null
@@ -682,13 +650,15 @@ fun RecipeBookApp() {
                 DishIngredient(id, grams)
             }
             val allowed = allowedDishFlags(ingredients, productById)
-            val nutrition = calculateNutrition(ingredients, productById)
+            val portionSize = dishForm.portionSize.toDoubleOrNull() ?: 0.0
+            val nutrition = calculateNutrition(ingredients, productById, portionSize)
             dishForm = dishForm.copy(
                 flags = dishForm.flags.intersect(allowed),
-                calories = if (dishForm.isNutritionManuallyEdited) dishForm.calories else nutrition.calories.toOneDecimal(),
-                proteins = if (dishForm.isNutritionManuallyEdited) dishForm.proteins else nutrition.proteins.toOneDecimal(),
-                fats = if (dishForm.isNutritionManuallyEdited) dishForm.fats else nutrition.fats.toOneDecimal(),
-                carbs = if (dishForm.isNutritionManuallyEdited) dishForm.carbs else nutrition.carbs.toOneDecimal(),
+                calories = nutrition.calories.toOneDecimal(),
+                proteins = nutrition.proteins.toOneDecimal(),
+                fats = nutrition.fats.toOneDecimal(),
+                carbs = nutrition.carbs.toOneDecimal(),
+                isNutritionManuallyEdited = false,
             )
         }
     }
@@ -815,7 +785,6 @@ private fun DishEditor(
     onChange: (DishFormState) -> Unit,
     onUploadFailure: (String) -> Unit,
     onSave: () -> Unit,
-    onAutoFillNutrition: () -> Unit,
     onCancel: () -> Unit,
 ) {
     val productById = products.associateBy { it.id }
@@ -943,8 +912,7 @@ private fun DishEditor(
             NutritionField("Ккал", form.calories) {
                 onChange(
                     form.copy(
-                        calories = it,
-                        isNutritionManuallyEdited = true
+                        calories = it
                     )
                 )
             }
@@ -952,7 +920,6 @@ private fun DishEditor(
                 onChange(
                     form.copy(
                         proteins = it,
-                        isNutritionManuallyEdited = true
                     )
                 )
             }
@@ -960,7 +927,6 @@ private fun DishEditor(
                 onChange(
                     form.copy(
                         fats = it,
-                        isNutritionManuallyEdited = true
                     )
                 )
             }
@@ -968,12 +934,11 @@ private fun DishEditor(
                 onChange(
                     form.copy(
                         carbs = it,
-                        isNutritionManuallyEdited = true
                     )
                 )
             }
         }
-        Button(onClick = onAutoFillNutrition) { Text("Автоматически рассчитать КБЖУ") }
+        Text("КБЖУ рассчитываются автоматически по составу и размеру порции.")
 
         Text("Флаги блюда")
         ExtraFlag.entries.forEach { flag ->

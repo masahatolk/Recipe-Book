@@ -78,20 +78,22 @@ class RecipeService(private val repository: RecipeRepository) {
     }
 
     fun createDish(dish: Dish): Dish {
-        validateDish(dish)
-        val normalizedDish = applyDishAutofill(dish).copy(createdAt = nowTomsk(), updatedAt = null)
+        val normalizedDish = applyDishAutofill(dish)
+        validateDish(normalizedDish)
+        val createdDish = normalizedDish.copy(createdAt = nowTomsk(), updatedAt = null)
         val dishes = repository.dishes()
-        dishes += normalizedDish
+        dishes += createdDish
         repository.saveDishes(dishes)
-        return normalizedDish
+        return createdDish
     }
 
     fun updateDish(id: String, dish: Dish): Dish {
-        validateDish(dish)
+        val normalizedDish = applyDishAutofill(dish)
+        validateDish(normalizedDish)
         val items = repository.dishes()
         val index = items.indexOfFirst { it.id == id }
         require(index >= 0) { "Dish not found" }
-        val normalized = applyDishAutofill(dish).copy(
+        val normalized = normalizedDish.copy(
             id = id,
             createdAt = items[index].createdAt,
             updatedAt = nowTomsk()
@@ -167,19 +169,12 @@ class RecipeService(private val repository: RecipeRepository) {
     }
 
     private fun applyDishAutofill(dish: Dish): Dish {
-        val shouldUseMacroAutofill = dish.category !in DishCategory.entries
-        val (titleWithoutMacro, macroCategory) = if (shouldUseMacroAutofill) {
-            resolveMacroCategory(dish.name)
-        } else {
-            dish.name to null
-        }
+        val (titleWithoutMacro, macroCategory) = resolveMacroCategory(dish.name)
         val allowedFlags = availableFlags(dish.ingredients)
         return dish.copy(
-            name = titleWithoutMacro,
+            name = titleWithoutMacro.trim(),
             flags = dish.flags.intersect(allowedFlags),
-            category = dish.category.takeIf { it in DishCategory.entries }
-                ?: macroCategory
-                ?: DishCategory.SNACK,
+            category = macroCategory ?: dish.category,
         )
     }
 
@@ -196,18 +191,15 @@ class RecipeService(private val repository: RecipeRepository) {
     }
 
     private fun validateDish(dish: Dish) {
-        require(dish.name.length >= 2) { "Dish name min length is 2" }
+        require(dish.name.trim().length >= 2) { "Dish name min length is 2" }
         require(dish.photos.size <= 5) { "Max 5 photos" }
         require(dish.portionSizeGrams > 0) { "Portion size must be positive" }
         require(dish.ingredients.isNotEmpty()) { "Dish should contain at least one ingredient" }
         require(dish.ingredients.all { it.grams > 0 }) { "Ingredient grams must be positive" }
         require(dish.nutritionPerPortion.calories >= 0) { "Calories must be >= 0" }
-        require(dish.nutritionPerPortion.proteins in 0.0..100.0) { "Proteins must be in [0, 100]" }
-        require(dish.nutritionPerPortion.fats in 0.0..100.0) { "Fats must be in [0, 100]" }
-        require(dish.nutritionPerPortion.carbs in 0.0..100.0) { "Carbs must be in [0, 100]" }
-        require(
-            dish.nutritionPerPortion.proteins + dish.nutritionPerPortion.fats + dish.nutritionPerPortion.carbs <= 100.0
-        ) { "Proteins + fats + carbs must be <= 100" }
+        require(dish.nutritionPerPortion.proteins >= 0) { "Proteins must be >= 0" }
+        require(dish.nutritionPerPortion.fats >= 0) { "Fats must be >= 0" }
+        require(dish.nutritionPerPortion.carbs >= 0) { "Carbs must be >= 0" }
     }
 
     private fun productComparator(sortBy: String): Comparator<Product> = when (sortBy.lowercase()) {
