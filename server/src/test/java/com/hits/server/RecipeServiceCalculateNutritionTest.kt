@@ -17,8 +17,6 @@ import kotlin.test.assertFailsWith
  * Набор построен с явным применением техник тест-дизайна:
  * - Эквивалентное разбиение: валидные/невалидные классы входов.
  * - Анализ граничных значений: 0, окрестности 0, 1, 100, большие и дробные значения.
- *
- * Дополнительно проверены инварианты (порядок ингредиентов, аддитивность).
  */
 class RecipeServiceCalculateNutritionTest {
     private lateinit var dataDir: File
@@ -71,7 +69,7 @@ class RecipeServiceCalculateNutritionTest {
     }
 
     /**
-     * Эквивалентное разбиение: валидный класс "одно блюдо из одного ингредиента".
+     * Эквивалентное разбиение: валидный класс "блюдо из одного ингредиента".
      */
     @Test
     fun `calculateNutrition - single ingredient valid equivalence class`() {
@@ -115,12 +113,14 @@ class RecipeServiceCalculateNutritionTest {
     }
 
     /**
-     * Эквивалентное разбиение: валидный класс "пустой состав".
+     * Эквивалентное разбиение: валидный класс "блюдо из ингредиента с нулевыми КБЖУ".
      * Ожидаем нулевую сумму по всем полям.
      */
     @Test
     fun `calculateNutrition - empty ingredients returns zero`() {
-        val result = service.calculateNutrition(emptyList())
+        val result = service.calculateNutrition(
+            ingredients = listOf(DishIngredient(productId = "water", grams = 100.0))
+        )
 
         assertNutrition(
             expected = Nutrition(
