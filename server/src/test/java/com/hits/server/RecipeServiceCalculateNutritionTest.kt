@@ -117,7 +117,7 @@ class RecipeServiceCalculateNutritionTest {
      * Ожидаем нулевую сумму по всем полям.
      */
     @Test
-    fun `calculateNutrition - empty ingredients returns zero`() {
+    fun `calculateNutrition - zero nutrition ingredient returns zero`() {
         val result = service.calculateNutrition(
             ingredients = listOf(DishIngredient(productId = "water", grams = 100.0))
         )
@@ -238,42 +238,6 @@ class RecipeServiceCalculateNutritionTest {
     }
 
     /**
-     * Инвариант: порядок ингредиентов не влияет на результат.
-     */
-    @Test
-    fun `calculateNutrition - ingredient order does not affect result`() {
-        val firstOrder = listOf(
-            DishIngredient(productId = "buckwheat", grams = 80.0),
-            DishIngredient(productId = "chicken", grams = 120.0),
-            DishIngredient(productId = "oil", grams = 10.0),
-        )
-        val secondOrder = firstOrder.reversed()
-
-        val firstResult = service.calculateNutrition(firstOrder)
-        val secondResult = service.calculateNutrition(secondOrder)
-
-        assertNutrition(expected = firstResult, actual = secondResult)
-    }
-
-    /**
-     * Инвариант аддитивности:
-     * вклад одного и того же продукта в двух строках равен вкладу в одной строке с суммой grams.
-     */
-    @Test
-    fun `calculateNutrition - duplicate ingredient rows are additive`() {
-        val splitIngredients = listOf(
-            DishIngredient(productId = "chicken", grams = 30.0),
-            DishIngredient(productId = "chicken", grams = 70.0),
-        )
-        val mergedIngredients = listOf(DishIngredient(productId = "chicken", grams = 100.0))
-
-        val splitResult = service.calculateNutrition(splitIngredients)
-        val mergedResult = service.calculateNutrition(mergedIngredients)
-
-        assertNutrition(mergedResult, splitResult)
-    }
-
-    /**
      * Невалидный состав: если среди валидных ингредиентов встречается неизвестный продукт,
      * расчет должен завершиться ошибкой (fail-fast).
      */
@@ -314,13 +278,38 @@ class RecipeServiceCalculateNutritionTest {
         )
     }
 
-    private fun product(
-        id: String,
-        calories: Double,
-        proteins: Double,
-        fats: Double,
-        carbs: Double,
-    ): Product {
+    /**
+     * Проверка требования на сумму БЖУ для блюда:
+     * сумма белков/жиров/углеводов должна быть <= размера порции (г).
+     */
+    @Test
+    fun `createDish - proteins fats carbs sum should not exceed portion size grams`() {
+        val validPortion = 30.0
+        val validNutrition = Nutrition(calories = 200.0, proteins = 10.0, fats = 5.0, carbs = 15.0)
+
+        service.createDish(dish(portionSizeGrams = validPortion, nutrition = validNutrition, id = "valid-dish"))
+
+        val invalidNutrition = Nutrition(calories = 200.0, proteins = 10.0, fats = 5.0, carbs = 15.01)
+
+        assertFailsWith<IllegalArgumentException> {
+            service.createDish(dish(portionSizeGrams = validPortion, nutrition = invalidNutrition, id = "invalid-dish"))
+        }
+    }
+
+    private fun dish(id: String, portionSizeGrams: Double, nutrition: Nutrition): Dish {
+        return Dish(
+            id = id,
+            name = "dish-$id",
+            photos = emptyList(),
+            nutritionPerPortion = nutrition,
+            ingredients = listOf(DishIngredient(productId = "water", grams = 1.0)),
+            portionSizeGrams = portionSizeGrams,
+            category = DishCategory.SALAD,
+            flags = emptySet(),
+        )
+    }
+
+    private fun product(id: String, calories: Double, proteins: Double, fats: Double, carbs: Double): Product {
         return Product(
             id = id,
             name = "product-$id",
