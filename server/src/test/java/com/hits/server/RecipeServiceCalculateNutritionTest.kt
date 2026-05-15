@@ -140,7 +140,7 @@ class RecipeServiceCalculateNutritionTest {
     @Test
     fun `calculateNutrition - boundary values for grams`() {
         val cases = listOf(
-            BoundaryCase(grams = 0.0, expectedCalories = 0.0, expectedProteins = 0.0, expectedFats = 0.0, expectedCarbs = 0.0),
+            BoundaryCase(grams = 0.0, expectedCalories = 1.0, expectedProteins = 0.0, expectedFats = 0.0, expectedCarbs = 0.0),
             BoundaryCase(
                 grams = Double.MIN_VALUE,
                 expectedCalories = 343.0 * Double.MIN_VALUE / 100.0,
@@ -150,7 +150,7 @@ class RecipeServiceCalculateNutritionTest {
             ),
             BoundaryCase(grams = 0.5, expectedCalories = 1.715, expectedProteins = 0.0665, expectedFats = 0.017, expectedCarbs = 0.3575),
             BoundaryCase(grams = 1.0, expectedCalories = 3.43, expectedProteins = 0.133, expectedFats = 0.034, expectedCarbs = 0.715),
-            BoundaryCase(grams = 100.0, expectedCalories = 343.0, expectedProteins = 13.3, expectedFats = 3.4, expectedCarbs = 71.5),
+            BoundaryCase(grams = -100.0, expectedCalories = 343.0, expectedProteins = 13.3, expectedFats = 3.4, expectedCarbs = 71.5),
         )
 
         cases.forEach { case ->
