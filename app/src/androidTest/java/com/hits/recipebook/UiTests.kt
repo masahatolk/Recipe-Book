@@ -124,7 +124,7 @@ class UiTests {
         openDishEditor()
         fillDishBaseForm(name = "Я", portion = "100", calories = "10", proteins = "1", fats = "1", carbs = "1")
         save()
-        composeRule.onNodeWithText("Название блюда: минимум 2 символа").assertExists()
+        composeRule.onNodeWithText("Название блюда: минимум 2 символа").assertIsDisplayed()
     }
 
     @Test
@@ -132,7 +132,7 @@ class UiTests {
         openDishEditor()
         fillDishBaseForm(name = "Салат", portion = "100", calories = "10", proteins = "1", fats = "1", carbs = "1")
         save()
-        composeRule.onNodeWithText("Нужно добавить минимум 1 продукт").assertExists()
+        composeRule.onNodeWithText("Нужно добавить минимум 1 продукт").assertIsDisplayed()
     }
 
     @Test
@@ -140,7 +140,7 @@ class UiTests {
         openDishEditor()
         fillDishBaseForm(name = "Салат", portion = "", calories = "10", proteins = "1", fats = "1", carbs = "1")
         save()
-        composeRule.onNodeWithText("Нужно добавить минимум 1 продукт").assertExists()
+        composeRule.onNodeWithText("Нужно добавить минимум 1 продукт").assertIsDisplayed()
     }
 
     @Test
@@ -148,7 +148,7 @@ class UiTests {
         openDishEditor()
         fillDishBaseForm(name = "Овощное блюдо", portion = "100", calories = "10", proteins = "1", fats = "1", carbs = "1")
         save()
-        composeRule.onNodeWithText("Нужно добавить минимум 1 продукт").assertExists()
+        composeRule.onNodeWithText("Нужно добавить минимум 1 продукт").assertIsDisplayed()
     }
 
     @Test
@@ -156,7 +156,7 @@ class UiTests {
         openDishEditor()
         fillDishBaseForm(name = "!суп Борщ", portion = "100", calories = "abc", proteins = "1", fats = "1", carbs = "1")
         save()
-        composeRule.onNodeWithText("Нужно добавить минимум 1 продукт").assertExists()
+        composeRule.onNodeWithText("Нужно добавить минимум 1 продукт").assertIsDisplayed()
     }
 
     @Test
@@ -164,7 +164,7 @@ class UiTests {
         openDishEditor()
         fillDishBaseForm(name = "!суп Борщ", portion = "100", calories = "10", proteins = "-0.1", fats = "1", carbs = "1")
         save()
-        composeRule.onNodeWithText("Нужно добавить минимум 1 продукт").assertExists()
+        composeRule.onNodeWithText("Нужно добавить минимум 1 продукт").assertIsDisplayed()
     }
 
     @Test
@@ -172,7 +172,7 @@ class UiTests {
         openDishEditor()
         fillDishBaseForm(name = "!суп Борщ", portion = "100", calories = "10", proteins = "1", fats = "-0.1", carbs = "1")
         save()
-        composeRule.onNodeWithText("Нужно добавить минимум 1 продукт").assertExists()
+        composeRule.onNodeWithText("Нужно добавить минимум 1 продукт").assertIsDisplayed()
     }
 
     @Test
@@ -180,7 +180,7 @@ class UiTests {
         openDishEditor()
         fillDishBaseForm(name = "!суп Борщ", portion = "100", calories = "10", proteins = "1", fats = "1", carbs = "-0.1")
         save()
-        composeRule.onNodeWithText("Нужно добавить минимум 1 продукт").assertExists()
+        composeRule.onNodeWithText("Нужно добавить минимум 1 продукт").assertIsDisplayed()
     }
 
     @Test
@@ -188,14 +188,14 @@ class UiTests {
         openDishEditor()
         fillDishBaseForm(name = "!суп Борщ", portion = "100", calories = "200", proteins = "40", fats = "30", carbs = "30.1")
         save()
-        composeRule.onNodeWithText("Нужно добавить минимум 1 продукт").assertExists()
+        composeRule.onNodeWithText("Нужно добавить минимум 1 продукт").assertIsDisplayed()
     }
 
     @Test
     fun dish_flagsSectionVisible_andHasThreeFlags() {
         openDishEditor()
         composeRule.onNodeWithText("Флаги блюда").assertIsDisplayed()
-        composeRule.onNodeWithText("Веган").assertExists()
+        composeRule.onNodeWithText("Веган").assertIsDisplayed()
         composeRule.onNodeWithText("Без глютена").assertIsDisplayed()
         composeRule.onNodeWithText("Без сахара").assertIsDisplayed()
     }
@@ -203,7 +203,7 @@ class UiTests {
     @Test
     fun filters_canBeExpandedForProductsAndDishes() {
         composeRule.onNodeWithText("Открыть фильтры и сортировку").performClick()
-        composeRule.onNodeWithText("Сортировка").assertExists()
+        composeRule.onNodeWithText("Сортировка").assertIsDisplayed()
 
         composeRule.onNodeWithText("Блюда").performClick()
         composeRule.onNodeWithText("Открыть фильтры").performClick()
