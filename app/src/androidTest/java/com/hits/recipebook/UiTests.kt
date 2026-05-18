@@ -1,7 +1,9 @@
 package com.hits.recipebook
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertDoesNotExist
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -28,7 +30,7 @@ class UiTests {
     // ---------- Product tests ----------
 
     @Test
-    fun product_nameTooShort_showsValidation() = run {
+    fun product_nameTooShort_showsValidation() {
         openProductEditor()
         fillProductForm(name = "Я", calories = "10", proteins = "1", fats = "1", carbs = "1")
         save()
@@ -36,7 +38,7 @@ class UiTests {
     }
 
     @Test
-    fun product_caloriesRequired_showsValidation() = run {
+    fun product_caloriesRequired_showsValidation() {
         openProductEditor()
         fillProductForm(name = "Творог", calories = "", proteins = "1", fats = "1", carbs = "1")
         save()
@@ -44,7 +46,7 @@ class UiTests {
     }
 
     @Test
-    fun product_caloriesMustBeNumber_showsValidation() = run {
+    fun product_caloriesMustBeNumber_showsValidation() {
         openProductEditor()
         fillProductForm(name = "Творог", calories = "abc", proteins = "1", fats = "1", carbs = "1")
         save()
@@ -52,7 +54,7 @@ class UiTests {
     }
 
     @Test
-    fun product_caloriesBelowZero_showsValidation() = run {
+    fun product_caloriesBelowZero_showsValidation() {
         openProductEditor()
         fillProductForm(name = "Творог", calories = "-0.1", proteins = "1", fats = "1", carbs = "1")
         save()
@@ -60,7 +62,7 @@ class UiTests {
     }
 
     @Test
-    fun product_proteinsBelowZero_showsValidation() = run {
+    fun product_proteinsBelowZero_showsValidation() {
         openProductEditor()
         fillProductForm(name = "Творог", calories = "10", proteins = "-0.1", fats = "1", carbs = "1")
         save()
@@ -68,7 +70,7 @@ class UiTests {
     }
 
     @Test
-    fun product_proteinsAboveHundred_showsValidation() = run {
+    fun product_proteinsAboveHundred_showsValidation() {
         openProductEditor()
         fillProductForm(name = "Творог", calories = "10", proteins = "100.1", fats = "0", carbs = "0")
         save()
@@ -76,7 +78,7 @@ class UiTests {
     }
 
     @Test
-    fun product_fatsAboveHundred_showsValidation() = run {
+    fun product_fatsAboveHundred_showsValidation() {
         openProductEditor()
         fillProductForm(name = "Авокадо", calories = "10", proteins = "0", fats = "100.1", carbs = "0")
         save()
@@ -84,7 +86,7 @@ class UiTests {
     }
 
     @Test
-    fun product_carbsAboveHundred_showsValidation() = run {
+    fun product_carbsAboveHundred_showsValidation() {
         openProductEditor()
         fillProductForm(name = "Фрукт", calories = "10", proteins = "0", fats = "0", carbs = "100.1")
         save()
@@ -92,7 +94,7 @@ class UiTests {
     }
 
     @Test
-    fun product_bzhuSumAboveHundred_showsValidation() = run {
+    fun product_bzhuSumAboveHundred_showsValidation() {
         openProductEditor()
         fillProductForm(name = "Сыр", calories = "200", proteins = "40", fats = "30", carbs = "30.1")
         save()
@@ -100,7 +102,7 @@ class UiTests {
     }
 
     @Test
-    fun product_bzhuSumEqualHundred_passesLocalValidationAndFailsOnBackend() = run {
+    fun product_bzhuSumEqualHundred_passesLocalValidationAndFailsOnBackend() {
         openProductEditor()
         fillProductForm(name = "Сыр", calories = "200", proteins = "40", fats = "30", carbs = "30")
         save()
@@ -108,7 +110,7 @@ class UiTests {
     }
 
     @Test
-    fun product_zeroBoundaryValues_areAcceptedLocally() = run {
+    fun product_zeroBoundaryValues_areAcceptedLocally() {
         openProductEditor()
         fillProductForm(name = "Вода", calories = "0", proteins = "0", fats = "0", carbs = "0")
         save()
@@ -118,7 +120,7 @@ class UiTests {
     // ---------- Dish tests ----------
 
     @Test
-    fun dish_nameTooShort_showsValidation() = run {
+    fun dish_nameTooShort_showsValidation() {
         openDishEditor()
         fillDishBaseForm(name = "Я", portion = "100", calories = "10", proteins = "1", fats = "1", carbs = "1")
         save()
@@ -126,7 +128,7 @@ class UiTests {
     }
 
     @Test
-    fun dish_withoutIngredients_showsValidation() = run {
+    fun dish_withoutIngredients_showsValidation() {
         openDishEditor()
         fillDishBaseForm(name = "Салат", portion = "100", calories = "10", proteins = "1", fats = "1", carbs = "1")
         save()
@@ -134,7 +136,7 @@ class UiTests {
     }
 
     @Test
-    fun dish_portionRequired_showsValidation() = run {
+    fun dish_portionRequired_showsValidation() {
         openDishEditor()
         fillDishBaseForm(name = "Салат", portion = "", calories = "10", proteins = "1", fats = "1", carbs = "1")
         save()
@@ -142,7 +144,7 @@ class UiTests {
     }
 
     @Test
-    fun dish_categoryRequiredWithoutMacro_showsValidation() = run {
+    fun dish_categoryRequiredWithoutMacro_showsValidation() {
         openDishEditor()
         fillDishBaseForm(name = "Овощное блюдо", portion = "100", calories = "10", proteins = "1", fats = "1", carbs = "1")
         save()
@@ -150,7 +152,7 @@ class UiTests {
     }
 
     @Test
-    fun dish_caloriesMustBeNumber_showsValidation() = run {
+    fun dish_caloriesMustBeNumber_showsValidation() {
         openDishEditor()
         fillDishBaseForm(name = "!суп Борщ", portion = "100", calories = "abc", proteins = "1", fats = "1", carbs = "1")
         save()
@@ -158,7 +160,7 @@ class UiTests {
     }
 
     @Test
-    fun dish_proteinsBelowZero_showsValidation() = run {
+    fun dish_proteinsBelowZero_showsValidation() {
         openDishEditor()
         fillDishBaseForm(name = "!суп Борщ", portion = "100", calories = "10", proteins = "-0.1", fats = "1", carbs = "1")
         save()
@@ -166,7 +168,7 @@ class UiTests {
     }
 
     @Test
-    fun dish_fatsBelowZero_showsValidation() = run {
+    fun dish_fatsBelowZero_showsValidation() {
         openDishEditor()
         fillDishBaseForm(name = "!суп Борщ", portion = "100", calories = "10", proteins = "1", fats = "-0.1", carbs = "1")
         save()
@@ -174,7 +176,7 @@ class UiTests {
     }
 
     @Test
-    fun dish_carbsBelowZero_showsValidation() = run {
+    fun dish_carbsBelowZero_showsValidation() {
         openDishEditor()
         fillDishBaseForm(name = "!суп Борщ", portion = "100", calories = "10", proteins = "1", fats = "1", carbs = "-0.1")
         save()
@@ -182,7 +184,7 @@ class UiTests {
     }
 
     @Test
-    fun dish_bzhuSumAboveHundred_showsValidation() = run {
+    fun dish_bzhuSumAboveHundred_showsValidation() {
         openDishEditor()
         fillDishBaseForm(name = "!суп Борщ", portion = "100", calories = "200", proteins = "40", fats = "30", carbs = "30.1")
         save()
@@ -190,7 +192,7 @@ class UiTests {
     }
 
     @Test
-    fun dish_flagsSectionVisible_andHasThreeFlags() = run {
+    fun dish_flagsSectionVisible_andHasThreeFlags() {
         openDishEditor()
         composeRule.onNodeWithText("Флаги блюда").assertIsDisplayed()
         composeRule.onNodeWithText("Веган").assertIsDisplayed()
@@ -199,7 +201,7 @@ class UiTests {
     }
 
     @Test
-    fun filters_canBeExpandedForProductsAndDishes() = run {
+    fun filters_canBeExpandedForProductsAndDishes() {
         composeRule.onNodeWithText("Открыть фильтры и сортировку").performClick()
         composeRule.onNodeWithText("Сортировка").assertIsDisplayed()
 
@@ -239,8 +241,18 @@ class UiTests {
     }
 
     private fun inputField(label: String, value: String) {
-        composeRule.onNodeWithText(label).performClick()
-        composeRule.onNodeWithText(label).performTextClearance()
-        composeRule.onNodeWithText(label).performTextInput(value)
+        composeRule
+            .onNode(
+                hasSetTextAction() and hasText(label),
+                useUnmergedTree = true
+            )
+            .performTextClearance()
+
+        composeRule
+            .onNode(
+                hasSetTextAction() and hasText(label),
+                useUnmergedTree = true
+            )
+            .performTextInput(value)
     }
 }
