@@ -148,13 +148,12 @@ private sealed interface DetailScreen {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RecipeBookApp() {
+fun RecipeBookApp(api: RecipeBookApi = RecipeBookApiFactory.api) {
     val snackBarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     val products = remember { mutableStateListOf<Product>() }
     val dishes = remember { mutableStateListOf<Dish>() }
-    val api = remember { RecipeBookApiFactory.api }
 
     var tab by remember { mutableIntStateOf(0) }
     var productSearch by remember { mutableStateOf("") }

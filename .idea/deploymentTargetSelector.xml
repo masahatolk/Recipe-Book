@@ -13,17 +13,6 @@
         </DropdownSelection>
         <DialogSelection />
       </SelectionState>
-      <SelectionState runConfigName="product_nameTooShort_showsValidation()">
-        <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2026-05-18T06:04:23.248484900Z">
-          <Target type="DEFAULT_BOOT">
-            <handle>
-              <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\masht\.android\avd\Pixel_9_Pro_XL.avd" />
-            </handle>
-          </Target>
-        </DropdownSelection>
-        <DialogSelection />
-      </SelectionState>
       <SelectionState runConfigName="UiTests">
         <option name="selectionMode" value="DROPDOWN" />
         <DropdownSelection timestamp="2026-05-18T06:12:48.773937700Z">
@@ -35,21 +24,16 @@
         </DropdownSelection>
         <DialogSelection />
       </SelectionState>
-      <SelectionState runConfigName="dish_nameTooShort_showsValidation()">
-        <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2026-05-18T08:12:32.379569800Z">
-          <Target type="DEFAULT_BOOT">
-            <handle>
-              <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\masht\.android\avd\Pixel_9_Pro_XL.avd" />
-            </handle>
-          </Target>
-        </DropdownSelection>
-        <DialogSelection />
-      </SelectionState>
-      <SelectionState runConfigName="dish_caloriesMustBeNumber_showsValidation()">
+      <SelectionState runConfigName="dish_flagsSectionVisible_andHasThreeFlags()">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
-      <SelectionState runConfigName="product_bzhuSumEqualHundred_passesLocalValidationAndFailsOnBackend()">
+      <SelectionState runConfigName="filters_canBeExpandedForProductsAndDishes()">
+        <option name="selectionMode" value="DROPDOWN" />
+      </SelectionState>
+      <SelectionState runConfigName="product_viewEditDelete_flow()">
+        <option name="selectionMode" value="DROPDOWN" />
+      </SelectionState>
+      <SelectionState runConfigName="product_searchFilterAndSort_work()">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
     </selectionStates>
