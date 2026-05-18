@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import org.junit.Rule
@@ -203,18 +204,18 @@ class UiTests {
         openDishEditor()
         composeRule.onNodeWithText("Флаги блюда").assertIsDisplayed()
         composeRule.onNodeWithText("Веган").assertIsDisplayed()
-        composeRule.onNodeWithText("Без глютена").assertIsDisplayed()
-        composeRule.onNodeWithText("Без сахара").assertIsDisplayed()
+        composeRule.onNodeWithText("Без глютена").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Без сахара").performScrollTo().assertIsDisplayed()
     }
 
     @Test
     fun filters_canBeExpandedForProductsAndDishes() {
         composeRule.onNodeWithText("Открыть фильтры и сортировку").performClick()
-        composeRule.onNodeWithText("Сортировка").assertIsDisplayed()
+        composeRule.onNodeWithText("Сортировка").performScrollTo().assertIsDisplayed()
 
         composeRule.onNodeWithText("Блюда").performClick()
         composeRule.onNodeWithText("Открыть фильтры").performClick()
-        composeRule.onNodeWithText("Категория").assertIsDisplayed()
+        composeRule.onNodeWithText("Категория").performScrollTo().assertIsDisplayed()
     }
 
     private fun openProductEditor() {
