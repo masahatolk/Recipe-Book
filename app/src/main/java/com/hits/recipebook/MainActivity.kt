@@ -492,13 +492,6 @@ fun RecipeBookApp() {
                         }
                     }
                     if (isDishEditorVisible) {
-                        if (dishError != null) {
-                            Text(
-                                dishError!!,
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.padding(vertical = 8.dp)
-                            )
-                        }
                         Card(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -508,6 +501,7 @@ fun RecipeBookApp() {
                                 api = api,
                                 form = dishForm,
                                 products = products,
+                                error = dishError,
                                 onChange = { dishForm = it },
                                 onUploadFailure = { message ->
                                     scope.launch { snackBarHostState.showSnackbar(message) }
@@ -717,20 +711,6 @@ fun RecipeBookApp() {
                     }
                 }
             }
-
-            if (tab == 1 && isDishEditorVisible && dishError != null) {
-                Card(
-                    modifier = Modifier
-                        .padding(12.dp)
-                        .fillMaxWidth()
-                ) {
-                    Text(
-                        dishError!!,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(12.dp)
-                    )
-                }
-            }
         }
     }
 
@@ -871,6 +851,7 @@ private fun DishEditor(
     api: RecipeBookApi,
     form: DishFormState,
     products: List<Product>,
+    error: String?,
     onChange: (DishFormState) -> Unit,
     onUploadFailure: (String) -> Unit,
     onSave: () -> Unit,
@@ -971,6 +952,7 @@ private fun DishEditor(
             }
         }
 
+        if (error != null) Text(error, color = MaterialTheme.colorScheme.error)
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
