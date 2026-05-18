@@ -60,6 +60,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -918,12 +919,16 @@ private fun DishEditor(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Checkbox(checked = selected, onCheckedChange = { check ->
-                    onChange(
-                        if (check) form.copy(ingredientGrams = form.ingredientGrams + (product.id to "100"))
-                        else form.copy(ingredientGrams = form.ingredientGrams - product.id)
-                    )
-                })
+                Checkbox(
+                    checked = selected,
+                    onCheckedChange = { check ->
+                        onChange(
+                            if (check) form.copy(ingredientGrams = form.ingredientGrams + (product.id to "100"))
+                            else form.copy(ingredientGrams = form.ingredientGrams - product.id)
+                        )
+                    },
+                    modifier = Modifier.testTag("dish-ingredient-checkbox"),
+                )
                 Text(product.name, modifier = Modifier.weight(1f))
                 if (selected) {
                     OutlinedTextField(
