@@ -1,10 +1,14 @@
 package com.hits.recipebook
 
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
@@ -13,14 +17,9 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * Подробный набор UI-тестов для ТЗ «Книга рецептов».
- *
  * В тестах применяются:
  * - Эквивалентное разбиение: валидные/невалидные классы данных для строк и чисел.
  * - Анализ граничных значений: 0, >0, 100, >100, минимальная длина названия.
- *
- * Набор фокусируется на детерминированной валидации формы на UI-слое,
- * чтобы тесты были стабильны без зависимости от состояния backend.
  */
 class UiTests {
 
@@ -123,6 +122,7 @@ class UiTests {
     fun dish_nameTooShort_showsValidation() {
         openDishEditor()
         fillDishBaseForm(name = "Я", portion = "100", calories = "10", proteins = "1", fats = "1", carbs = "1")
+        selectFirstDishIngredient()
         save()
         composeRule.onNodeWithText("Название блюда: минимум 2 символа").assertIsDisplayed()
     }
@@ -139,56 +139,63 @@ class UiTests {
     fun dish_portionRequired_showsValidation() {
         openDishEditor()
         fillDishBaseForm(name = "Салат", portion = "", calories = "10", proteins = "1", fats = "1", carbs = "1")
+        selectFirstDishIngredient()
         save()
-        composeRule.onNodeWithText("Нужно добавить минимум 1 продукт").assertIsDisplayed()
+        composeRule.onNodeWithText("Поле \\\"Размер порции\\\" не может быть пустым").assertIsDisplayed()
     }
 
     @Test
     fun dish_categoryRequiredWithoutMacro_showsValidation() {
         openDishEditor()
         fillDishBaseForm(name = "Овощное блюдо", portion = "100", calories = "10", proteins = "1", fats = "1", carbs = "1")
+        selectFirstDishIngredient()
         save()
-        composeRule.onNodeWithText("Нужно добавить минимум 1 продукт").assertIsDisplayed()
+        composeRule.onNodeWithText("Укажите категорию или добавьте макрос в названии").assertIsDisplayed()
     }
 
     @Test
     fun dish_caloriesMustBeNumber_showsValidation() {
         openDishEditor()
         fillDishBaseForm(name = "!суп Борщ", portion = "100", calories = "abc", proteins = "1", fats = "1", carbs = "1")
+        selectFirstDishIngredient()
         save()
-        composeRule.onNodeWithText("Нужно добавить минимум 1 продукт").assertIsDisplayed()
+        composeRule.onNodeWithText("Поле \\\"Калорийность\\\" должно быть числом").assertIsDisplayed()
     }
 
     @Test
     fun dish_proteinsBelowZero_showsValidation() {
         openDishEditor()
         fillDishBaseForm(name = "!суп Борщ", portion = "100", calories = "10", proteins = "-0.1", fats = "1", carbs = "1")
+        selectFirstDishIngredient()
         save()
-        composeRule.onNodeWithText("Нужно добавить минимум 1 продукт").assertIsDisplayed()
+        composeRule.onNodeWithText("Белки должны быть >= 0").assertIsDisplayed()
     }
 
     @Test
     fun dish_fatsBelowZero_showsValidation() {
         openDishEditor()
         fillDishBaseForm(name = "!суп Борщ", portion = "100", calories = "10", proteins = "1", fats = "-0.1", carbs = "1")
+        selectFirstDishIngredient()
         save()
-        composeRule.onNodeWithText("Нужно добавить минимум 1 продукт").assertIsDisplayed()
+        composeRule.onNodeWithText("Жиры должны быть >= 0").assertIsDisplayed()
     }
 
     @Test
     fun dish_carbsBelowZero_showsValidation() {
         openDishEditor()
         fillDishBaseForm(name = "!суп Борщ", portion = "100", calories = "10", proteins = "1", fats = "1", carbs = "-0.1")
+        selectFirstDishIngredient()
         save()
-        composeRule.onNodeWithText("Нужно добавить минимум 1 продукт").assertIsDisplayed()
+        composeRule.onNodeWithText("Углеводы должны быть >= 0").assertIsDisplayed()
     }
 
     @Test
     fun dish_bzhuSumAboveHundred_showsValidation() {
         openDishEditor()
         fillDishBaseForm(name = "!суп Борщ", portion = "100", calories = "200", proteins = "40", fats = "30", carbs = "30.1")
+        selectFirstDishIngredient()
         save()
-        composeRule.onNodeWithText("Нужно добавить минимум 1 продукт").assertIsDisplayed()
+        composeRule.onNodeWithText("Сумма БЖУ на порцию не может превышать 100").assertIsDisplayed()
     }
 
     @Test
@@ -223,6 +230,12 @@ class UiTests {
         composeRule.onNodeWithText("Создать").performClick()
     }
 
+    @OptIn(ExperimentalTestApi::class)
+    private fun selectFirstDishIngredient() {
+        composeRule.waitUntilAtLeastOneExists(hasTestTag("dish-ingredient-checkbox"), timeoutMillis = 5_000)
+        composeRule.onAllNodesWithTag("dish-ingredient-checkbox").onFirst().performClick()
+    }
+
     private fun fillProductForm(name: String, calories: String, proteins: String, fats: String, carbs: String) {
         inputField("Название*", name)
         inputField("Ккал", calories)
@@ -232,7 +245,7 @@ class UiTests {
     }
 
     private fun fillDishBaseForm(name: String, portion: String, calories: String, proteins: String, fats: String, carbs: String) {
-        inputField("Название* (макросы: !десерт, !первое...) ", name)
+        inputField("Название* (макросы: !десерт, !первое...)", name)
         inputField("Размер порции, г*", portion)
         inputField("Ккал", calories)
         inputField("Белки", proteins)
