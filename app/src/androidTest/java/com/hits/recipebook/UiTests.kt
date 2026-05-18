@@ -232,7 +232,7 @@ class UiTests {
     }
 
     private fun fillDishBaseForm(name: String, portion: String, calories: String, proteins: String, fats: String, carbs: String) {
-        inputField("Название* (макросы: !десерт, !первое...) ", name)
+        inputField("Название* (макросы: !десерт, !первое...)", name)
         inputField("Размер порции, г*", portion)
         inputField("Ккал", calories)
         inputField("Белки", proteins)

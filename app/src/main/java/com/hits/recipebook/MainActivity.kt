@@ -858,7 +858,7 @@ private fun DishEditor(
         OutlinedTextField(
             form.name,
             { onChange(form.copy(name = it)) },
-            label = { Text("Название* (макросы: !десерт, !первое...) ") },
+            label = { Text("Название* (макросы: !десерт, !первое...)") },
             modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
