@@ -2,8 +2,6 @@ package com.hits.recipebook
 
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.hasAnyDescendant
-import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -11,8 +9,6 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performTextClearance
-import androidx.compose.ui.test.performTextInput
 import com.hits.recipebook.ui.theme.RecipeBookTheme
 import org.junit.Before
 import org.junit.Rule
@@ -27,7 +23,7 @@ class DishNumericValidationParameterizedUiTest(
     private val fats: String,
     private val carbs: String,
     private val expectedError: String,
-) {
+) : BaseComposeUiTest() {
     @get:Rule
     val composeRule = createComposeRule()
 
@@ -35,10 +31,10 @@ class DishNumericValidationParameterizedUiTest(
     fun setUp() {
         composeRule.setContent {
             RecipeBookTheme {
-                RecipeBookApp(api = FakeRecipeBookApi())
+                RecipeBookApp(api = TestAppFactory.fakeApi())
             }
         }
-        waitForProduct("Авокадо UI")
+        composeRule.waitUntilVisible(hasText("Авокадо UI"))
     }
 
     @Test
@@ -56,12 +52,16 @@ class DishNumericValidationParameterizedUiTest(
 
         composeRule.onNodeWithText("Создать").performClick()
 
-        composeRule.onNodeWithText(expectedError).assertIsDisplayed()
+        if (expectedError.isBlank()) {
+            composeRule.onNodeWithText("Сумма БЖУ на порцию не может превышать 100").assertDoesNotExist()
+        } else {
+            composeRule.onNodeWithText(expectedError).assertIsDisplayed()
+        }
     }
 
     private fun openDishEditor() {
         composeRule.onNodeWithText("Блюда").performClick()
-        waitForDish("Салат UI")
+        composeRule.waitUntilVisible(hasText("Салат UI"))
         composeRule.onNodeWithText("Создать блюдо").performClick()
     }
 
@@ -72,40 +72,12 @@ class DishNumericValidationParameterizedUiTest(
     }
 
     private fun fillDishBaseForm(name: String, portion: String, calories: String, proteins: String, fats: String, carbs: String) {
-        inputField("Название* (макросы: !десерт, !первое...)", name)
-        inputField("Размер порции, г*", portion)
-        inputField("Ккал", calories)
-        inputField("Белки", proteins)
-        inputField("Жиры", fats)
-        inputField("Углев.", carbs)
-    }
-
-    private fun inputField(label: String, value: String) {
-        composeRule
-            .onNode(
-                hasSetTextAction() and hasAnyDescendant(hasText(label)),
-                useUnmergedTree = true
-            )
-            .performTextClearance()
-
-        if (value.isNotEmpty()) {
-            composeRule
-                .onNode(
-                    hasSetTextAction() and hasAnyDescendant(hasText(label)),
-                    useUnmergedTree = true
-                )
-                .performTextInput(value)
-        }
-    }
-
-    @OptIn(ExperimentalTestApi::class)
-    private fun waitForProduct(name: String) {
-        composeRule.waitUntilAtLeastOneExists(hasText(name), timeoutMillis = 5_000)
-    }
-
-    @OptIn(ExperimentalTestApi::class)
-    private fun waitForDish(name: String) {
-        composeRule.waitUntilAtLeastOneExists(hasText(name), timeoutMillis = 5_000)
+        composeRule.inputField("Название* (макросы: !десерт, !первое...)", name)
+        composeRule.inputField("Размер порции, г*", portion)
+        composeRule.inputField("Ккал", calories)
+        composeRule.inputField("Белки", proteins)
+        composeRule.inputField("Жиры", fats)
+        composeRule.inputField("Углев.", carbs)
     }
 
     companion object {

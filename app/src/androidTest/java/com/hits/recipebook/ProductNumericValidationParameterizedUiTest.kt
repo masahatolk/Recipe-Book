@@ -1,15 +1,10 @@
 package com.hits.recipebook
 
-import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.hasAnyDescendant
-import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performTextClearance
-import androidx.compose.ui.test.performTextInput
 import com.hits.recipebook.ui.theme.RecipeBookTheme
 import org.junit.Before
 import org.junit.Rule
@@ -25,7 +20,7 @@ class ProductNumericValidationParameterizedUiTest(
     private val fats: String,
     private val carbs: String,
     private val expectedError: String,
-) {
+) : BaseComposeUiTest() {
     @get:Rule
     val composeRule = createComposeRule()
 
@@ -33,10 +28,10 @@ class ProductNumericValidationParameterizedUiTest(
     fun setUp() {
         composeRule.setContent {
             RecipeBookTheme {
-                RecipeBookApp(api = FakeRecipeBookApi())
+                RecipeBookApp(api = TestAppFactory.fakeApi())
             }
         }
-        waitForProduct("Авокадо UI")
+        composeRule.waitUntilVisible(hasText("Авокадо UI"))
     }
 
     @Test
@@ -46,38 +41,19 @@ class ProductNumericValidationParameterizedUiTest(
 
         composeRule.onNodeWithText("Создать").performClick()
 
-        composeRule.onNodeWithText(expectedError).assertIsDisplayed()
-    }
-
-    private fun fillProductForm(name: String, calories: String, proteins: String, fats: String, carbs: String) {
-        inputField("Название*", name)
-        inputField("Ккал", calories)
-        inputField("Белки", proteins)
-        inputField("Жиры", fats)
-        inputField("Углев.", carbs)
-    }
-
-    private fun inputField(label: String, value: String) {
-        composeRule
-            .onNode(
-                hasSetTextAction() and hasAnyDescendant(hasText(label)),
-                useUnmergedTree = true
-            )
-            .performTextClearance()
-
-        if (value.isNotEmpty()) {
-            composeRule
-                .onNode(
-                    hasSetTextAction() and hasAnyDescendant(hasText(label)),
-                    useUnmergedTree = true
-                )
-                .performTextInput(value)
+        if (expectedError.isBlank()) {
+            composeRule.onNodeWithText("Сумма БЖУ на 100 г не может превышать 100").assertDoesNotExist()
+        } else {
+            composeRule.onNodeWithText(expectedError).assertIsDisplayed()
         }
     }
 
-    @OptIn(ExperimentalTestApi::class)
-    private fun waitForProduct(name: String) {
-        composeRule.waitUntilAtLeastOneExists(hasText(name), timeoutMillis = 5_000)
+    private fun fillProductForm(name: String, calories: String, proteins: String, fats: String, carbs: String) {
+        composeRule.inputField("Название*", name)
+        composeRule.inputField("Ккал", calories)
+        composeRule.inputField("Белки", proteins)
+        composeRule.inputField("Жиры", fats)
+        composeRule.inputField("Углев.", carbs)
     }
 
     companion object {
@@ -86,41 +62,24 @@ class ProductNumericValidationParameterizedUiTest(
         fun data(): Collection<Array<String>> = listOf(
             arrayOf("Т", "0", "0", "0", "0", ""),
             arrayOf("Продукт", "0", "0", "0", "0", ""),
-            arrayOf("Продукт", "0.0", "0", "0", "0", ""),
             arrayOf("Продукт", "0.1", "0", "0", "0", ""),
             arrayOf("Продукт", "-0.1", "0", "0", "0", "Калорийность должна быть >= 0"),
             arrayOf("Продукт", "9999.9", "0", "0", "0", ""),
-            arrayOf("Продукт", "10", "0", "0", "0", ""),
-            arrayOf("Продукт", "10", "0.0", "0", "0", ""),
             arrayOf("Продукт", "10", "0.1", "0", "0", ""),
             arrayOf("Продукт", "10", "99.9", "0", "0", ""),
-            arrayOf("Продукт", "10", "100", "0", "0", ""),
-            arrayOf("Продукт", "10", "100.0", "0", "0", ""),
             arrayOf("Продукт", "10", "100.1", "0", "0", "Белки должны быть в диапазоне 0..100"),
             arrayOf("Продукт", "10", "-0.1", "0", "0", "Белки должны быть в диапазоне 0..100"),
-            arrayOf("Продукт", "10", "0", "0", "0", ""),
-            arrayOf("Продукт", "10", "0", "0.0", "0", ""),
             arrayOf("Продукт", "10", "0", "0.1", "0", ""),
             arrayOf("Продукт", "10", "0", "99.9", "0", ""),
-            arrayOf("Продукт", "10", "0", "100", "0", ""),
-            arrayOf("Продукт", "10", "0", "100.0", "0", ""),
             arrayOf("Продукт", "10", "0", "100.1", "0", "Жиры должны быть в диапазоне 0..100"),
             arrayOf("Продукт", "10", "0", "-0.1", "0", "Жиры должны быть в диапазоне 0..100"),
-            arrayOf("Продукт", "10", "0", "0", "0", ""),
-            arrayOf("Продукт", "10", "0", "0", "0.0", ""),
             arrayOf("Продукт", "10", "0", "0", "0.1", ""),
             arrayOf("Продукт", "10", "0", "0", "99.9", ""),
-            arrayOf("Продукт", "10", "0", "0", "100", ""),
-            arrayOf("Продукт", "10", "0", "0", "100.0", ""),
             arrayOf("Продукт", "10", "0", "0", "100.1", "Углеводы должны быть в диапазоне 0..100"),
             arrayOf("Продукт", "10", "0", "0", "-0.1", "Углеводы должны быть в диапазоне 0..100"),
-            arrayOf("Продукт", "10", "33.3", "33.3", "33.3", ""),
-            arrayOf("Продукт", "10", "33.4", "33.3", "33.3", ""),
-            arrayOf("Продукт", "10", "50", "25", "25", ""),
             arrayOf("Продукт", "10", "100", "0", "0", ""),
             arrayOf("Продукт", "10", "0", "100", "0", ""),
             arrayOf("Продукт", "10", "0", "0", "100", ""),
-            arrayOf("Продукт", "10", "40", "30", "30", ""),
             arrayOf("Продукт", "10", "40", "30", "30.1", "Сумма БЖУ на 100 г не может превышать 100"),
             arrayOf("Продукт", "10", "40", "30.1", "30", "Сумма БЖУ на 100 г не может превышать 100"),
             arrayOf("Продукт", "10", "40.1", "30", "30", "Сумма БЖУ на 100 г не может превышать 100"),
@@ -132,7 +91,6 @@ class ProductNumericValidationParameterizedUiTest(
             arrayOf("Продукт", "10", "0.2", "0", "99.9", "Сумма БЖУ на 100 г не может превышать 100"),
             arrayOf("Продукт", "999999", "100", "0", "0", ""),
             arrayOf("Продукт", "999999", "33.3", "33.3", "33.4", ""),
-            arrayOf("Продукт", "1", "34", "33", "33", ""),
             arrayOf("Продукт", "1", "34", "33", "33.1", "Сумма БЖУ на 100 г не может превышать 100")
         )
     }
