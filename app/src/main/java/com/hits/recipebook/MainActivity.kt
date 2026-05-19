@@ -431,16 +431,9 @@ fun RecipeBookApp(api: RecipeBookApi = RecipeBookApiFactory.api) {
                                                 isProductEditorVisible = true
                                             }) { Text("Редактировать") }
                                             Button(onClick = {
-                                                val usedInDishes = dishes
-                                                    .filter { dish -> dish.ingredients.any { it.productId == product.id } }
-                                                    .map { it.name }
+
                                                 scope.launch {
-                                                    if (usedInDishes.isNotEmpty()) {
-                                                        snackBarHostState.showSnackbar(
-                                                            "Удаление недоступно: продукт используется в блюдах: ${usedInDishes.joinToString()}"
-                                                        )
-                                                        return@launch
-                                                    }
+
                                                     runCatching {
                                                         api.deleteProduct(product.id)
                                                         products.remove(product)
