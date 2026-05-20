@@ -1,5 +1,6 @@
 package com.hits.recipebook
 
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyDescendant
@@ -16,6 +17,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import com.hits.recipebook.ui.theme.RecipeBookTheme
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -59,6 +61,8 @@ class UiTests {
         waitUntilTextDoesNotExist("Сохранить")
         searchProduct("Банан UI обновлен")
         waitForProduct("Банан UI обновлен")
+        composeRule.onAllNodesWithText("Просмотр").onFirst().performClick()
+        assertUpdatedAtIsSet()
     }
 
     @Test
@@ -67,7 +71,8 @@ class UiTests {
 
         composeRule.onAllNodesWithText("Удалить").onFirst().performClick()
 
-        val blockedDeletionTextPrefix = "Удаление недоступно: продукт используется в блюдах: Салат UI"
+        val blockedDeletionTextPrefix =
+            "Удаление недоступно: продукт используется в блюдах: Салат UI"
         waitForText(blockedDeletionTextPrefix, substring = true)
         composeRule.onNodeWithText(blockedDeletionTextPrefix, substring = true).assertIsDisplayed()
         composeRule.onAllNodesWithText("Авокадо UI").onFirst().assertIsDisplayed()
@@ -131,6 +136,8 @@ class UiTests {
         waitUntilTextDoesNotExist("Редактирование блюда")
         searchDish("Салат UI обновлен")
         waitForDish("Салат UI обновлен")
+        composeRule.onAllNodesWithText("Просмотр").onFirst().performClick()
+        assertUpdatedAtIsSet()
     }
 
     @Test
@@ -192,13 +199,13 @@ class UiTests {
             fats = "1",
             carbs = "1"
         )
+        selectDishCategory("Суп")
         selectFirstDishIngredient()
-        //selectDishCategory()
         save()
         waitUntilTextDoesNotExist("Создать")
 
-        searchDish("Макро UI")
-        waitForDish("Макро UI")
+        searchDish("!десерт Макро UI")
+        waitForDish("!десерт Макро UI")
         composeRule.onNodeWithText("Категория: Суп").assertIsDisplayed()
     }
 
@@ -216,7 +223,6 @@ class UiTests {
         composeRule.onAllNodesWithText("Салат UI").onFirst().performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("Суп UI").assertDoesNotExist()
     }
-
 
     @Test
     fun filters_canBeExpandedForProductsAndDishes() {
@@ -242,6 +248,11 @@ class UiTests {
         composeRule.onNodeWithText("Создать блюдо").performClick()
     }
 
+    private fun selectDishCategory(categoryLabel: String) {
+        composeRule.onNodeWithText("Авто").performScrollTo().performClick()
+        composeRule.onNodeWithText(categoryLabel).performScrollTo().performClick()
+    }
+
     private fun save() {
         composeRule.onNodeWithText("Создать").performClick()
     }
@@ -265,20 +276,6 @@ class UiTests {
             timeoutMillis = 5_000
         )
         composeRule.onAllNodesWithTag("dish-ingredient-checkbox").onFirst().performClick()
-    }
-
-    private fun fillProductForm(
-        name: String,
-        calories: String,
-        proteins: String,
-        fats: String,
-        carbs: String
-    ) {
-        inputField("Название*", name)
-        inputField("Ккал", calories)
-        inputField("Белки", proteins)
-        inputField("Жиры", fats)
-        inputField("Углев.", carbs)
     }
 
     private fun fillDishBaseForm(
@@ -346,6 +343,15 @@ class UiTests {
     @OptIn(ExperimentalTestApi::class)
     private fun waitForDishListEmpty() {
         composeRule.waitUntilAtLeastOneExists(hasText("Блюда не найдены"), timeoutMillis = 5_000)
+    }
+
+    private fun assertUpdatedAtIsSet() {
+        val updatedLabel =
+            composeRule.onNodeWithText("Изменён:", substring = true).fetchSemanticsNode().config
+                .getOrNull(androidx.compose.ui.semantics.SemanticsProperties.Text)
+                ?.joinToString(separator = "") { it.text }
+                .orEmpty()
+        assertNotEquals("Изменён: —", updatedLabel.trim())
     }
 
     private fun assertTextIsAbove(upperText: String, lowerText: String) {

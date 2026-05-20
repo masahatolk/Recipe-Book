@@ -13,19 +13,27 @@
         </DropdownSelection>
         <DialogSelection />
       </SelectionState>
-      <SelectionState runConfigName="DishValidationParameterizedUiTest">
+      <SelectionState runConfigName="UiTests">
+        <option name="selectionMode" value="DROPDOWN" />
+        <DropdownSelection timestamp="2026-05-20T07:45:36.578868500Z">
+          <Target type="DEFAULT_BOOT">
+            <handle>
+              <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\masht\.android\avd\Pixel_3a_API_34_extension_level_7_x86_64.avd" />
+            </handle>
+          </Target>
+        </DropdownSelection>
+        <DialogSelection />
+      </SelectionState>
+      <SelectionState runConfigName="product_edit_updatesName()">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
-      <SelectionState runConfigName="ProductValidationParameterizedUiTest">
+      <SelectionState runConfigName="product_createWithGalleryPhoto_showsSelectedPhoto()">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
-      <SelectionState runConfigName="DishNumericValidationParameterizedUiTest">
+      <SelectionState runConfigName="dish_createWithGalleryPhoto_showsSelectedPhoto()">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
-      <SelectionState runConfigName="ProductNumericValidationParameterizedUiTest">
-        <option name="selectionMode" value="DROPDOWN" />
-      </SelectionState>
-      <SelectionState runConfigName="dish_createWithFirstMacro_setsCategory()">
+      <SelectionState runConfigName="dish_edit_updatesName()">
         <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
     </selectionStates>
