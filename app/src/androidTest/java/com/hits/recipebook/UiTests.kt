@@ -162,6 +162,47 @@ class UiTests {
     }
 
     @Test
+    fun dish_createWithFirstMacro_setsCategory() {
+        openDishEditor()
+        fillDishBaseForm(
+            name = "!десерт !суп Макро UI",
+            portion = "100",
+            calories = "10",
+            proteins = "1",
+            fats = "1",
+            carbs = "1"
+        )
+        selectFirstDishIngredient()
+        save()
+        waitUntilTextDoesNotExist("Создать")
+
+        searchDish("!суп Макро UI")
+        waitForDish("!суп Макро UI")
+        composeRule.onNodeWithText("Категория: Десерт").assertIsDisplayed()
+    }
+
+    @Test
+    fun dish_createWithMacroAndCategory_setsCategory() {
+        openDishEditor()
+        fillDishBaseForm(
+            name = "!десерт Макро UI",
+            portion = "100",
+            calories = "10",
+            proteins = "1",
+            fats = "1",
+            carbs = "1"
+        )
+        selectFirstDishIngredient()
+        //selectDishCategory()
+        save()
+        waitUntilTextDoesNotExist("Создать")
+
+        searchDish("Макро UI")
+        waitForDish("Макро UI")
+        composeRule.onNodeWithText("Категория: Суп").assertIsDisplayed()
+    }
+
+    @Test
     fun dish_searchAndFilter_work() {
         openDishesTab()
         searchDish("Суп")
