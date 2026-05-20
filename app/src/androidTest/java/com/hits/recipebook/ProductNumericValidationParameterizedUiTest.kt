@@ -5,6 +5,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import com.hits.recipebook.ui.theme.RecipeBookTheme
 import org.junit.Before
 import org.junit.Rule
@@ -39,7 +40,7 @@ class ProductNumericValidationParameterizedUiTest(
         composeRule.onNodeWithText("Создать продукт").performClick()
         fillProductForm(name, calories, proteins, fats, carbs)
 
-        composeRule.onNodeWithText("Создать").performClick()
+        composeRule.onNodeWithText("Создать").performScrollTo().performClick()
 
         if (expectedError.isBlank()) {
             composeRule.onNodeWithText("Сумма БЖУ на 100 г не может превышать 100").assertDoesNotExist()

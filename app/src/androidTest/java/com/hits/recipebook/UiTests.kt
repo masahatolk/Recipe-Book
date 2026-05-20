@@ -67,10 +67,10 @@ class UiTests {
 
         composeRule.onAllNodesWithText("Удалить").onFirst().performClick()
 
-        val blockedDeletionTextPrefix = "Удаление недоступно: продукт используется в блюдах"
+        val blockedDeletionTextPrefix = "Удаление недоступно: продукт используется в блюдах: Салат UI"
         waitForText(blockedDeletionTextPrefix, substring = true)
         composeRule.onNodeWithText(blockedDeletionTextPrefix, substring = true).assertIsDisplayed()
-        composeRule.onNodeWithText("Авокадо UI").assertIsDisplayed()
+        composeRule.onAllNodesWithText("Авокадо UI").onFirst().assertIsDisplayed()
     }
 
     @Test
@@ -128,7 +128,7 @@ class UiTests {
         composeRule.onNodeWithText("Редактирование блюда").assertIsDisplayed()
         inputField("Название* (макросы: !десерт, !первое...)", "Салат UI обновлен")
         saveEdited()
-        waitUntilTextDoesNotExist("Сохранить")
+        waitUntilTextDoesNotExist("Редактирование блюда")
         searchDish("Салат UI обновлен")
         waitForDish("Салат UI обновлен")
     }
@@ -171,7 +171,8 @@ class UiTests {
         searchDish("")
         composeRule.onNodeWithText("Открыть фильтры").performClick()
         composeRule.onNodeWithText("Салат").performScrollTo().performClick()
-        composeRule.onNodeWithText("Салат UI").assertIsDisplayed()
+        waitForDish("Салат UI")
+        composeRule.onAllNodesWithText("Салат UI").onFirst().performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("Суп UI").assertDoesNotExist()
     }
 
@@ -205,7 +206,7 @@ class UiTests {
     }
 
     private fun saveEdited() {
-        composeRule.onNodeWithText("Сохранить").performClick()
+        composeRule.onNodeWithText("Сохранить").performScrollTo().performClick()
     }
 
     private fun searchProduct(value: String) {
