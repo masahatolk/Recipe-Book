@@ -6,6 +6,9 @@ import com.hits.recipebook.network.PhotoUploadResponse
 import com.hits.recipebook.network.ProductUpsertRequest
 import com.hits.recipebook.network.RecipeBookApi
 import okhttp3.MultipartBody
+import okhttp3.ResponseBody.Companion.toResponseBody
+import retrofit2.HttpException
+import retrofit2.Response
 import java.time.Instant
 
 class FakeRecipeBookApi : RecipeBookApi {
@@ -85,6 +88,13 @@ class FakeRecipeBookApi : RecipeBookApi {
     }
 
     override suspend fun deleteProduct(id: String) {
+        val linkedDishNames = dishes
+            .filter { dish -> dish.ingredients.any { ingredient -> ingredient.productId == id } }
+            .map { it.name }
+        if (linkedDishNames.isNotEmpty()) {
+            val body = """{"dishNames":[${linkedDishNames.joinToString(",") { "\"$it\"" }}]}"""
+            throw HttpException(Response.error<Any>(409, body.toResponseBody(null)))
+        }
         products.removeAll { it.id == id }
     }
 

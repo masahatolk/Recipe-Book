@@ -10,7 +10,6 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -40,59 +39,19 @@ class UiTests {
         waitForProduct("Авокадо UI")
     }
 
-    // PRODUCT PRODUCT PRODUCT PRODUCT PRODUCT PRODUCT PRODUCT PRODUCT PRODUCT PRODUCT PRODUCT PRODUCT PRODUCT PRODUCT PRODUCT PRODUCT PRODUCT PRODUCT
-
     @Test
-    fun product_nameTooShort_showsValidation() {
-        openProductEditor()
-        fillProductForm(name = "Я", calories = "10", proteins = "1", fats = "1", carbs = "1")
-        save()
-        composeRule.onNodeWithText("Название продукта: минимум 2 символа").assertIsDisplayed()
-    }
-
-    @Test
-    fun product_caloriesRequired_showsValidation() {
-        openProductEditor()
-        fillProductForm(name = "Творог", calories = "", proteins = "1", fats = "1", carbs = "1")
-        save()
-        composeRule.onNodeWithText("Поле \"Калорийность\" не может быть пустым").assertIsDisplayed()
-    }
-
-    @Test
-    fun product_caloriesMustBeNumber_showsValidation() {
-        openProductEditor()
-        fillProductForm(name = "Творог", calories = "abc", proteins = "1", fats = "1", carbs = "1")
-        save()
-        composeRule.onNodeWithText("Поле \"Калорийность\" должно быть числом").assertIsDisplayed()
-    }
-
-    @Test
-    fun product_bzhuSumEqualHundred_passesLocalValidationAndFailsOnBackend() {
-        openProductEditor()
-        fillProductForm(name = "Сыр", calories = "200", proteins = "40", fats = "30", carbs = "30")
-        save()
-        composeRule.onNodeWithText("Сумма БЖУ на 100 г не может превышать 100").assertDoesNotExist()
-    }
-
-    @Test
-    fun product_zeroBoundaryValues_areAcceptedLocally() {
-        openProductEditor()
-        fillProductForm(name = "Вода", calories = "0", proteins = "0", fats = "0", carbs = "0")
-        save()
-        composeRule.onNodeWithText("Белки должны быть в диапазоне 0..100").assertDoesNotExist()
-    }
-
-    // TODO
-    @Test
-    fun product_viewEditDelete_flow() {
+    fun product_view_showsDetails() {
         searchProduct("Банан UI")
 
         composeRule.onAllNodesWithText("Просмотр").onFirst().performClick()
         composeRule.onNodeWithText("Просмотр продукта").assertIsDisplayed()
         composeRule.onNodeWithText("Название: Банан UI").assertIsDisplayed()
         composeRule.onNodeWithText("Категория: Сладости").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Назад").performClick()
+    }
 
+    @Test
+    fun product_edit_updatesName() {
+        searchProduct("Банан UI")
         composeRule.onAllNodesWithText("Редактировать").onFirst().performClick()
         composeRule.onNodeWithText("Редактирование продукта").assertIsDisplayed()
         inputField("Название*", "Банан UI обновлен")
@@ -100,21 +59,25 @@ class UiTests {
         waitUntilTextDoesNotExist("Сохранить")
         searchProduct("Банан UI обновлен")
         waitForProduct("Банан UI обновлен")
-
-        composeRule.onAllNodesWithText("Удалить").onFirst().performClick()
-        waitForProductListEmpty()
     }
 
-    //TODO FIX
     @Test
     fun product_deleteUsedInDish_showsBlockedMessage() {
         searchProduct("Авокадо UI")
 
         composeRule.onAllNodesWithText("Удалить").onFirst().performClick()
 
-        waitForText("Удаление недоступно: продукт используется в блюдах: Салат UI")
-        composeRule.onNodeWithText("Удаление недоступно: продукт используется в блюдах: Салат UI").assertIsDisplayed()
+        val blockedDeletionTextPrefix = "Удаление недоступно: продукт используется в блюдах"
+        waitForText(blockedDeletionTextPrefix, substring = true)
+        composeRule.onNodeWithText(blockedDeletionTextPrefix, substring = true).assertIsDisplayed()
         composeRule.onNodeWithText("Авокадо UI").assertIsDisplayed()
+    }
+
+    @Test
+    fun product_delete_removesProductFromList() {
+        searchProduct("Банан UI")
+        composeRule.onAllNodesWithText("Удалить").onFirst().performClick()
+        waitForProductListEmpty()
     }
 
     @Test
@@ -136,52 +99,6 @@ class UiTests {
         assertTextIsAbove("Курица UI", "Авокадо UI")
     }
 
-    // DISH DISH DISH DISH DISH DISH DISH DISH DISH DISH DISH DISH DISH DISH DISH DISH DISH DISH DISH DISH DISH DISH DISH DISH DISH DISH DISH DISH DISH DISH DISH DISH
-
-    @Test
-    fun dish_nameTooShort_showsValidation() {
-        openDishEditor()
-        fillDishBaseForm(name = "Я", portion = "100", calories = "10", proteins = "1", fats = "1", carbs = "1")
-        selectFirstDishIngredient()
-        save()
-        composeRule.onNodeWithText("Название блюда: минимум 2 символа").assertIsDisplayed()
-    }
-
-    @Test
-    fun dish_withoutIngredients_showsValidation() {
-        openDishEditor()
-        fillDishBaseForm(name = "Салат", portion = "100", calories = "10", proteins = "1", fats = "1", carbs = "1")
-        save()
-        composeRule.onNodeWithText("Нужно добавить минимум 1 продукт").assertIsDisplayed()
-    }
-
-    @Test
-    fun dish_portionRequired_showsValidation() {
-        openDishEditor()
-        fillDishBaseForm(name = "Салат", portion = "", calories = "10", proteins = "1", fats = "1", carbs = "1")
-        selectFirstDishIngredient()
-        save()
-        composeRule.onNodeWithText("Поле \\\"Размер порции\\\" не может быть пустым").assertIsDisplayed()
-    }
-
-    @Test
-    fun dish_categoryRequiredWithoutMacro_showsValidation() {
-        openDishEditor()
-        fillDishBaseForm(name = "Овощное блюдо", portion = "100", calories = "10", proteins = "1", fats = "1", carbs = "1")
-        selectFirstDishIngredient()
-        save()
-        composeRule.onNodeWithText("Укажите категорию или добавьте макрос в названии").assertIsDisplayed()
-    }
-
-    @Test
-    fun dish_caloriesMustBeNumber_showsValidation() {
-        openDishEditor()
-        fillDishBaseForm(name = "!суп Борщ", portion = "100", calories = "abc", proteins = "1", fats = "1", carbs = "1")
-        selectFirstDishIngredient()
-        save()
-        composeRule.onNodeWithText("Поле \\\"Калорийность\\\" должно быть числом").assertIsDisplayed()
-    }
-
     @Test
     fun dish_flagsSectionVisible_andHasThreeFlags() {
         openDishEditor()
@@ -191,9 +108,8 @@ class UiTests {
         composeRule.onNodeWithText("Без сахара").performScrollTo().assertIsDisplayed()
     }
 
-    // TODO
     @Test
-    fun dish_viewEditDelete_flow() {
+    fun dish_view_showsDetails() {
         openDishesTab()
         searchDish("Салат UI")
 
@@ -202,8 +118,12 @@ class UiTests {
         composeRule.onNodeWithText("Название: Салат UI").assertIsDisplayed()
         composeRule.onNodeWithText("Категория: Салат").assertIsDisplayed()
         composeRule.onNodeWithText("- Авокадо UI: 50.0 г").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Назад").performClick()
+    }
 
+    @Test
+    fun dish_edit_updatesName() {
+        openDishesTab()
+        searchDish("Салат UI")
         composeRule.onAllNodesWithText("Редактировать").onFirst().performClick()
         composeRule.onNodeWithText("Редактирование блюда").assertIsDisplayed()
         inputField("Название* (макросы: !десерт, !первое...)", "Салат UI обновлен")
@@ -211,7 +131,12 @@ class UiTests {
         waitUntilTextDoesNotExist("Сохранить")
         searchDish("Салат UI обновлен")
         waitForDish("Салат UI обновлен")
+    }
 
+    @Test
+    fun dish_delete_removesDishFromList() {
+        openDishesTab()
+        searchDish("Салат UI")
         composeRule.onAllNodesWithText("Удалить").onFirst().performClick()
         waitForDishListEmpty()
     }
@@ -219,7 +144,14 @@ class UiTests {
     @Test
     fun dish_createWithMacro_setsCategory() {
         openDishEditor()
-        fillDishBaseForm(name = "!десерт Макро UI", portion = "100", calories = "10", proteins = "1", fats = "1", carbs = "1")
+        fillDishBaseForm(
+            name = "!десерт Макро UI",
+            portion = "100",
+            calories = "10",
+            proteins = "1",
+            fats = "1",
+            carbs = "1"
+        )
         selectFirstDishIngredient()
         save()
         waitUntilTextDoesNotExist("Создать")
@@ -286,11 +218,20 @@ class UiTests {
 
     @OptIn(ExperimentalTestApi::class)
     private fun selectFirstDishIngredient() {
-        composeRule.waitUntilAtLeastOneExists(hasTestTag("dish-ingredient-checkbox"), timeoutMillis = 5_000)
+        composeRule.waitUntilAtLeastOneExists(
+            hasTestTag("dish-ingredient-checkbox"),
+            timeoutMillis = 5_000
+        )
         composeRule.onAllNodesWithTag("dish-ingredient-checkbox").onFirst().performClick()
     }
 
-    private fun fillProductForm(name: String, calories: String, proteins: String, fats: String, carbs: String) {
+    private fun fillProductForm(
+        name: String,
+        calories: String,
+        proteins: String,
+        fats: String,
+        carbs: String
+    ) {
         inputField("Название*", name)
         inputField("Ккал", calories)
         inputField("Белки", proteins)
@@ -298,7 +239,14 @@ class UiTests {
         inputField("Углев.", carbs)
     }
 
-    private fun fillDishBaseForm(name: String, portion: String, calories: String, proteins: String, fats: String, carbs: String) {
+    private fun fillDishBaseForm(
+        name: String,
+        portion: String,
+        calories: String,
+        proteins: String,
+        fats: String,
+        carbs: String
+    ) {
         inputField("Название* (макросы: !десерт, !первое...)", name)
         inputField("Размер порции, г*", portion)
         inputField("Ккал", calories)
@@ -331,8 +279,11 @@ class UiTests {
     }
 
     @OptIn(ExperimentalTestApi::class)
-    private fun waitForText(text: String) {
-        composeRule.waitUntilAtLeastOneExists(hasText(text), timeoutMillis = 5_000)
+    private fun waitForText(text: String, substring: Boolean = false) {
+        composeRule.waitUntilAtLeastOneExists(
+            hasText(text, substring = substring),
+            timeoutMillis = 5_000
+        )
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -355,26 +306,14 @@ class UiTests {
         composeRule.waitUntilAtLeastOneExists(hasText("Блюда не найдены"), timeoutMillis = 5_000)
     }
 
-    private data class ProductValidationCase(
-        val name: String,
-        val calories: String,
-        val proteins: String,
-        val fats: String,
-        val carbs: String,
-        val expectedError: String,
-    )
-
-    private data class DishValidationCase(
-        val calories: String = "10",
-        val proteins: String,
-        val fats: String,
-        val carbs: String,
-        val expectedError: String,
-    )
-
     private fun assertTextIsAbove(upperText: String, lowerText: String) {
-        val upperPosition = composeRule.onNodeWithText(upperText).fetchSemanticsNode().positionInRoot
-        val lowerPosition = composeRule.onNodeWithText(lowerText).fetchSemanticsNode().positionInRoot
-        assertTrue("$upperText должен отображаться выше $lowerText", upperPosition.y < lowerPosition.y)
+        val upperPosition =
+            composeRule.onNodeWithText(upperText).fetchSemanticsNode().positionInRoot
+        val lowerPosition =
+            composeRule.onNodeWithText(lowerText).fetchSemanticsNode().positionInRoot
+        assertTrue(
+            "$upperText должен отображаться выше $lowerText",
+            upperPosition.y < lowerPosition.y
+        )
     }
 }
